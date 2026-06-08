@@ -8,6 +8,7 @@
   "scripts": {
     "wasm": "wasm-pack build ../crypto-core --target web --release --out-dir ../web/src/wasm && bun scripts/fix-wasm-dts.mjs",
     "dev": "vite",
+    "prebuild": "bun run wasm",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview --host"
   },

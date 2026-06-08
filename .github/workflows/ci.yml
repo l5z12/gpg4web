@@ -28,13 +28,8 @@ jobs:
           wasm-pack build crypto-core --target nodejs --release --out-dir /tmp/wasm-node
           GPG4WEB_WASM=/tmp/wasm-node/gpg4web_core.js bun crypto-core/test.mjs
 
-      - name: Build WASM for the web
+      - name: Type-check & build front-end (prebuild compiles the WASM core)
         run: |
           cd web
           bun install --frozen-lockfile || bun install
-          bun run wasm
-
-      - name: Type-check & build front-end
-        run: |
-          cd web
           bun run build

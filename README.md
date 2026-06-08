@@ -58,7 +58,7 @@ gpg4web/
     ├── src/stores/       #   Pinia vault store (lock/unlock + persistence)
     ├── src/lib/          #   .gnupg export, zip writer, toasts
     ├── src/views/        #   Certificates, Notepad, Sign/Verify, Settings, About
-    └── src/wasm/         #   built WASM artifacts (committed)
+    └── src/wasm/         #   generated WASM artifacts (built by `bun run wasm`, gitignored)
 ```
 
 ---
@@ -75,7 +75,7 @@ cargo install wasm-pack
 
 cd web
 bun install
-bun run wasm      # build the Rust core into web/src/wasm (+ d.ts fixup)
+bun run wasm      # compile the Rust core into web/src/wasm (+ d.ts fixup)
 bun run dev       # start the Vite dev server
 ```
 
@@ -83,13 +83,14 @@ Build for production:
 
 ```bash
 cd web
-bun run build     # type-check + bundle into web/dist
+bun run build     # prebuild compiles the WASM, then type-check + bundle into web/dist
 bun run preview   # serve the production build locally
 ```
 
-The committed WASM in `web/src/wasm/` lets you run `bun run dev` / `build`
-without a Rust toolchain; rebuild it with `bun run wasm` after changing
-`crypto-core/`.
+The Rust→WASM core under `web/src/wasm/` is **generated, not committed**.
+`bun run build` regenerates it automatically via the `prebuild` hook, so a Rust
+toolchain + `wasm-pack` are required to build. For `bun run dev`, run
+`bun run wasm` once first (re-run it after changing `crypto-core/`).
 
 ## Deploying to Cloudflare Pages
 
@@ -101,15 +102,10 @@ The repo ships a ready-made build script. In your Cloudflare Pages project:
 | **Build output directory** | `web/dist` |
 | **Root directory** | `/` (default) |
 
-`cloudflare-build.sh` installs Bun (if missing), uses the committed WASM core,
-runs `bun install`, and builds the static site into `web/dist`. Caching and a
+`cloudflare-build.sh` installs Bun and the Rust + `wasm-pack` toolchain, then
+runs `bun install` and `bun run build` — which compiles the WASM core (via the
+`prebuild` hook) and bundles the static site into `web/dist`. Caching and a
 strict Content-Security-Policy are applied via `web/public/_headers`.
-
-Because changing `crypto-core/` requires recompiling the Rust core, set the
-environment variable **`REBUILD_WASM=1`** in the Pages build settings — the
-script will then install the Rust toolchain + `wasm-pack` and rebuild the WASM
-before bundling. (For routine deploys this is unnecessary; the committed
-artifact is used.)
 
 ---
 

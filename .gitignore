@@ -147,7 +147,5 @@ vite.config.ts.timestamp-*
 /crypto-core/target/
 # Vite production build
 /web/dist/
-# wasm-pack drops a helper package.json we don't use
-/web/src/wasm/package.json
-# Keep the built WASM committed so the frontend runs without a Rust toolchain.
-!/web/src/wasm/gpg4web_core_bg.wasm
+# Generated Rust → WASM artifacts (built by `bun run wasm`, never committed)
+/web/src/wasm/
