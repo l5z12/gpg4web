@@ -141,3 +141,13 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# ---- gpg4web project-specific ----
+# Rust / wasm build output
+/crypto-core/target/
+# Vite production build
+/web/dist/
+# wasm-pack drops a helper package.json we don't use
+/web/src/wasm/package.json
+# Keep the built WASM committed so the frontend runs without a Rust toolchain.
+!/web/src/wasm/gpg4web_core_bg.wasm
