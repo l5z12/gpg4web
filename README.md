@@ -91,6 +91,26 @@ The committed WASM in `web/src/wasm/` lets you run `bun run dev` / `build`
 without a Rust toolchain; rebuild it with `bun run wasm` after changing
 `crypto-core/`.
 
+## Deploying to Cloudflare Pages
+
+The repo ships a ready-made build script. In your Cloudflare Pages project:
+
+| Setting | Value |
+|---------|-------|
+| **Build command** | `bash cloudflare-build.sh` |
+| **Build output directory** | `web/dist` |
+| **Root directory** | `/` (default) |
+
+`cloudflare-build.sh` installs Bun (if missing), uses the committed WASM core,
+runs `bun install`, and builds the static site into `web/dist`. Caching and a
+strict Content-Security-Policy are applied via `web/public/_headers`.
+
+Because changing `crypto-core/` requires recompiling the Rust core, set the
+environment variable **`REBUILD_WASM=1`** in the Pages build settings — the
+script will then install the Rust toolchain + `wasm-pack` and rebuild the WASM
+before bundling. (For routine deploys this is unnecessary; the committed
+artifact is used.)
+
 ---
 
 ## Security notes
