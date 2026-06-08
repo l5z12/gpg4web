@@ -69,9 +69,8 @@ body {
 .lock-card label { display: block; font-size: 0.8rem; color: var(--muted); margin: 12px 0 4px; }
 .warn { color: var(--warn); font-size: 0.8rem; }
 .strength { display: flex; gap: 5px; margin-top: 8px; }
-.strength-bar { height: 5px; flex: 1; background: var(--border); border-radius: 3px; }
-.strength-bar.on { background: var(--good); }
-.strength-label { font-size: 0.75rem; color: var(--muted); }
+.strength-bar { height: 5px; flex: 1; background: var(--border); border-radius: 3px; transition: background 0.2s ease; }
+.strength-label { font-size: 0.75rem; color: var(--muted); transition: color 0.2s ease; }
 
 /* ---------- Inputs / buttons ---------- */
 input, select, textarea {

@@ -21,6 +21,9 @@ const strength = computed(() => {
   return Math.min(score, 4)
 })
 const strengthLabel = ['Very weak', 'Weak', 'Fair', 'Good', 'Strong']
+// Red → orange → amber → green as the score climbs.
+const strengthColors = ['#f87171', '#f87171', '#fb923c', '#fbbf24', '#34d399']
+const strengthColor = computed(() => strengthColors[strength.value])
 
 async function submit() {
   if (busy.value) return
@@ -95,9 +98,12 @@ function resetVault() {
               :key="i"
               class="strength-bar"
               :class="{ on: i <= strength }"
+              :style="i <= strength ? { background: strengthColor } : undefined"
             />
           </div>
-          <span class="strength-label">{{ strengthLabel[strength] }}</span>
+          <span class="strength-label" :style="{ color: strengthColor }">
+            {{ strengthLabel[strength] }}
+          </span>
 
           <label>Confirm password</label>
           <input
