@@ -4,6 +4,7 @@
   "description": "GNU Privacy Guard that runs in your browser — Rust + WASM OpenPGP with a post-quantum guarded vault.",
   "private": true,
   "type": "module",
+  "packageManager": "bun@1.3.11",
   "scripts": {
     "wasm": "wasm-pack build ../crypto-core --target web --release --out-dir ../web/src/wasm && node scripts/fix-wasm-dts.mjs",
     "dev": "vite",

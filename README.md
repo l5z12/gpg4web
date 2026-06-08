@@ -65,29 +65,30 @@ gpg4web/
 
 ## Development
 
-Prerequisites: **Node 20+**, **Rust** with the `wasm32-unknown-unknown` target,
-and [`wasm-pack`](https://rustwasm.github.io/wasm-pack/).
+Prerequisites: **[Bun](https://bun.sh) 1.1+**, **Rust** with the
+`wasm32-unknown-unknown` target, and
+[`wasm-pack`](https://rustwasm.github.io/wasm-pack/).
 
 ```bash
 rustup target add wasm32-unknown-unknown
 cargo install wasm-pack
 
 cd web
-npm install
-npm run wasm      # build the Rust core into web/src/wasm (+ d.ts fixup)
-npm run dev       # start the Vite dev server
+bun install
+bun run wasm      # build the Rust core into web/src/wasm (+ d.ts fixup)
+bun run dev       # start the Vite dev server
 ```
 
 Build for production:
 
 ```bash
 cd web
-npm run build     # type-check + bundle into web/dist
-npm run preview   # serve the production build locally
+bun run build     # type-check + bundle into web/dist
+bun run preview   # serve the production build locally
 ```
 
-The committed WASM in `web/src/wasm/` lets you run `npm run dev` / `build`
-without a Rust toolchain; rebuild it with `npm run wasm` after changing
+The committed WASM in `web/src/wasm/` lets you run `bun run dev` / `build`
+without a Rust toolchain; rebuild it with `bun run wasm` after changing
 `crypto-core/`.
 
 ---
