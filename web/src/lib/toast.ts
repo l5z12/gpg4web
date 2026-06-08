@@ -1,35 +1,46 @@
-import { reactive } from 'vue'
+// Lightweight toast helpers that proxy to Nuxt UI's `useToast()`.
+//
+// `registerToast` is called once from a component mounted inside <UApp>
+// (see AppToaster.vue). Everything else in the app can then call `toast()` /
+// `toastError()` / `toastSuccess()` without being inside a setup scope.
 
 export type ToastKind = 'info' | 'success' | 'error'
 
-export interface Toast {
-  id: number
-  kind: ToastKind
-  message: string
+interface ToastPayload {
+  title: string
+  color?: 'success' | 'error' | 'info' | 'primary' | 'neutral' | 'warning'
+  icon?: string
+}
+type AddFn = (payload: ToastPayload) => unknown
+
+let add: AddFn | null = null
+
+export function registerToast(fn: AddFn) {
+  add = fn
 }
 
-const state = reactive<{ toasts: Toast[] }>({ toasts: [] })
-let counter = 0
-
-export function useToasts() {
-  return state
+const colorFor: Record<ToastKind, ToastPayload['color']> = {
+  info: 'info',
+  success: 'success',
+  error: 'error',
+}
+const iconFor: Record<ToastKind, string> = {
+  info: 'i-lucide-info',
+  success: 'i-lucide-circle-check',
+  error: 'i-lucide-circle-alert',
 }
 
-export function toast(message: string, kind: ToastKind = 'info', timeout = 4000) {
-  const id = ++counter
-  state.toasts.push({ id, kind, message })
-  if (timeout > 0) {
-    setTimeout(() => dismiss(id), timeout)
+export function toast(message: string, kind: ToastKind = 'info') {
+  if (!add) {
+    // eslint-disable-next-line no-console
+    console[kind === 'error' ? 'error' : 'log'](message)
+    return
   }
+  add({ title: message, color: colorFor[kind], icon: iconFor[kind] })
 }
 
-export const toastError = (message: string) => toast(message, 'error', 6000)
+export const toastError = (message: string) => toast(message, 'error')
 export const toastSuccess = (message: string) => toast(message, 'success')
-
-export function dismiss(id: number) {
-  const i = state.toasts.findIndex((t) => t.id === id)
-  if (i >= 0) state.toasts.splice(i, 1)
-}
 
 /** Wrap a throwing operation and surface a toast on failure. */
 export function tryRun<T>(fn: () => T, errPrefix = 'Error'): T | undefined {

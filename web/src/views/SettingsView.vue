@@ -1,26 +1,50 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useVault } from '@/stores/vault'
 import { buildGnupgExport, downloadBlob } from '@/lib/gnupg'
 import { toastSuccess } from '@/lib/toast'
 
 const vault = useVault()
 
+const algoItems = [
+  { label: 'Curve25519 (recommended)', value: 'curve25519' },
+  { label: 'Ed25519 (v6)', value: 'ed25519' },
+  { label: 'RSA 4096', value: 'rsa4096' },
+  { label: 'NIST P-256', value: 'nistp256' },
+  { label: 'Post-quantum (ML-DSA-65 + ML-KEM-768)', value: 'pqc' },
+]
+const signKeyItems = computed(() => [
+  { label: 'None', value: '' },
+  ...vault.ownKeys.map((k) => ({ label: k.info.userIds[0] || k.keyId, value: k.fingerprint })),
+])
+
+const isDark = computed({
+  get: () => vault.settings.theme !== 'light',
+  set: (v: boolean) => vault.updateSettings({ theme: v ? 'dark' : 'light' }),
+})
+const defaultAlgo = computed({
+  get: () => vault.settings.defaultAlgorithm,
+  set: (v: string) => vault.updateSettings({ defaultAlgorithm: v }),
+})
+const defaultSignKey = computed({
+  get: () => vault.settings.defaultSignKey ?? '',
+  set: (v: string) => vault.updateSettings({ defaultSignKey: v || null }),
+})
+
 function exportGnupg() {
   downloadBlob(buildGnupgExport(vault.keys), 'gnupg-home-export.zip')
   toastSuccess('Exported .gnupg home archive')
 }
-
 function exportVault() {
-  // The raw encrypted blob — safe to back up; useless without the master password.
   const id = localStorage.getItem('gpg4web.vault.identity')
   const env = localStorage.getItem('gpg4web.vault.envelope')
-  const blob = new Blob([JSON.stringify({ identity: JSON.parse(id ?? 'null'), envelope: JSON.parse(env ?? 'null') }, null, 2)], {
-    type: 'application/json',
-  })
+  const blob = new Blob(
+    [JSON.stringify({ identity: JSON.parse(id ?? 'null'), envelope: JSON.parse(env ?? 'null') }, null, 2)],
+    { type: 'application/json' },
+  )
   downloadBlob(blob, 'gpg4web-vault-backup.json')
   toastSuccess('Encrypted vault backup downloaded')
 }
-
 function destroy() {
   if (!window.confirm('This permanently deletes your vault and ALL stored keys. This cannot be undone. Continue?'))
     return
@@ -32,54 +56,40 @@ function destroy() {
   <div class="view">
     <div class="view-head"><h1>Settings</h1></div>
 
-    <div class="card">
-      <h3>Defaults</h3>
-      <div class="form-grid">
-        <label>Default algorithm</label>
-        <select
-          :value="vault.settings.defaultAlgorithm"
-          @change="vault.updateSettings({ defaultAlgorithm: ($event.target as HTMLSelectElement).value })"
-        >
-          <option value="curve25519">Curve25519 (recommended)</option>
-          <option value="ed25519">Ed25519 (v6)</option>
-          <option value="rsa4096">RSA 4096</option>
-          <option value="nistp256">NIST P-256</option>
-          <option value="pqc">Post-quantum (ML-DSA-65 + ML-KEM-768)</option>
-        </select>
+    <UCard class="panel">
+      <template #header><span>Appearance &amp; defaults</span></template>
+      <UFormField label="Dark theme" class="setting-row">
+        <USwitch v-model="isDark" />
+      </UFormField>
+      <UFormField label="Default algorithm" class="setting-row">
+        <USelect v-model="defaultAlgo" :items="algoItems" class="setting-control" />
+      </UFormField>
+      <UFormField label="Default signing key" class="setting-row">
+        <USelect v-model="defaultSignKey" :items="signKeyItems" class="setting-control" />
+      </UFormField>
+    </UCard>
 
-        <label>Default signing key</label>
-        <select
-          :value="vault.settings.defaultSignKey ?? ''"
-          @change="vault.updateSettings({ defaultSignKey: ($event.target as HTMLSelectElement).value || null })"
-        >
-          <option value="">None</option>
-          <option v-for="k in vault.ownKeys" :key="k.fingerprint" :value="k.fingerprint">
-            {{ k.info.userIds[0] || k.keyId }}
-          </option>
-        </select>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>Backup &amp; export</h3>
+    <UCard class="panel">
+      <template #header><span>Backup &amp; export</span></template>
       <p class="hint">
-        The <strong>.gnupg export</strong> produces a portable archive that the
-        real <code>gpg</code> binary can import. The
-        <strong>vault backup</strong> is the encrypted localStorage blob — safe
-        to store anywhere, useless without your master password.
+        The <strong>.gnupg export</strong> produces a portable archive that the real
+        <code>gpg</code> binary can import. The <strong>vault backup</strong> is the encrypted
+        localStorage blob — safe to store anywhere, useless without your master password.
       </p>
-      <div class="row">
-        <button class="ghost" :disabled="!vault.keys.length" @click="exportGnupg">
-          📦 Export .gnupg home
-        </button>
-        <button class="ghost" @click="exportVault">💾 Backup encrypted vault</button>
+      <div class="row mt-3">
+        <UButton color="neutral" variant="subtle" icon="i-lucide-package" :disabled="!vault.keys.length" @click="exportGnupg">
+          Export .gnupg home
+        </UButton>
+        <UButton color="neutral" variant="subtle" icon="i-lucide-hard-drive-download" @click="exportVault">
+          Backup encrypted vault
+        </UButton>
       </div>
-    </div>
+    </UCard>
 
-    <div class="card danger-card">
-      <h3>Danger zone</h3>
+    <UCard class="panel">
+      <template #header><span>Danger zone</span></template>
       <p class="hint">Permanently remove the local vault and every key it contains.</p>
-      <button class="danger" @click="destroy">Delete vault</button>
-    </div>
+      <UButton color="error" icon="i-lucide-trash-2" class="mt-3" @click="destroy">Delete vault</UButton>
+    </UCard>
   </div>
 </template>

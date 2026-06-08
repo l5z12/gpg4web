@@ -1,32 +1,27 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import AppModal from './AppModal.vue'
 import { useVault } from '@/stores/vault'
 import { toastError, toastSuccess } from '@/lib/toast'
 
-const emit = defineEmits<{ close: []; imported: [] }>()
+const emit = defineEmits<{ close: [] }>()
 const vault = useVault()
 const text = ref('')
+const open = ref(true)
+const fileInput = ref<HTMLInputElement | null>(null)
 
 function splitArmored(input: string): string[] {
-  // Split a bundle into individual armored blocks.
   const re = /-----BEGIN PGP [^-]+-----[\s\S]*?-----END PGP [^-]+-----/g
   return input.match(re) ?? []
 }
 
 async function onFile(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  text.value = await file.text()
+  const f = (e.target as HTMLInputElement).files?.[0]
+  if (f) text.value = await f.text()
 }
 
 function doImport() {
   const blocks = splitArmored(text.value)
-  if (blocks.length === 0) {
-    toastError('No PGP key blocks found in the input')
-    return
-  }
+  if (blocks.length === 0) return toastError('No PGP key blocks found in the input')
   let ok = 0
   for (const block of blocks) {
     try {
@@ -38,25 +33,43 @@ function doImport() {
   }
   if (ok > 0) {
     toastSuccess(`Imported ${ok} key${ok === 1 ? '' : 's'}`)
-    emit('imported')
     emit('close')
   }
 }
 </script>
 
 <template>
-  <AppModal title="Import keys" wide @close="emit('close')">
-    <p class="hint">Paste an armored public or secret key (or a bundle of several), or load a file.</p>
-    <input type="file" accept=".asc,.gpg,.pgp,.key,.txt" @change="onFile" />
-    <textarea
-      v-model="text"
-      class="mono"
-      rows="14"
-      placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----&#10;…"
-    />
-    <template #footer>
-      <button class="ghost" @click="emit('close')">Cancel</button>
-      <button class="primary" :disabled="!text.trim()" @click="doImport">Import</button>
+  <UModal
+    :open="open"
+    title="Import keys"
+    description="Paste an armored public or secret key (or a bundle), or load a file."
+    :ui="{ content: 'sm:max-w-2xl' }"
+    @update:open="(v: boolean) => !v && emit('close')"
+  >
+    <template #body>
+      <input ref="fileInput" type="file" accept=".asc,.gpg,.pgp,.key,.txt" class="hidden" @change="onFile" />
+      <UButton
+        icon="i-lucide-upload"
+        color="neutral"
+        variant="subtle"
+        class="mb-3"
+        @click="fileInput?.click()"
+      >
+        Load file…
+      </UButton>
+      <UTextarea
+        v-model="text"
+        :rows="14"
+        class="w-full mono"
+        placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----&#10;…"
+      />
     </template>
-  </AppModal>
+
+    <template #footer>
+      <div class="modal-actions">
+        <UButton color="neutral" variant="ghost" @click="emit('close')">Cancel</UButton>
+        <UButton :disabled="!text.trim()" icon="i-lucide-download" @click="doImport">Import</UButton>
+      </div>
+    </template>
+  </UModal>
 </template>

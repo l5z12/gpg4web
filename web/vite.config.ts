@@ -1,12 +1,23 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import ui from '@nuxt/ui/vite'
 import { fileURLToPath, URL } from 'node:url'
 
 // gpg4web is a fully client-side app. The base is relative so it can be hosted
 // from any sub-path (GitHub Pages, static buckets, etc.).
 export default defineConfig({
   base: './',
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    ui({
+      ui: {
+        colors: {
+          primary: 'blue',
+          neutral: 'slate',
+        },
+      },
+    }),
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

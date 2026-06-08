@@ -149,3 +149,7 @@ vite.config.ts.timestamp-*
 /web/dist/
 # Generated Rust → WASM artifacts (built by `bun run wasm`, never committed)
 /web/src/wasm/
+
+# Nuxt UI auto-generated type declarations
+/web/auto-imports.d.ts
+/web/components.d.ts

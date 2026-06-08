@@ -58,7 +58,7 @@ async function submit() {
 }
 
 function resetVault() {
-  if (confirm.value !== 'DELETE' && !window.confirm('This permanently deletes your local vault and all stored keys. Continue?'))
+  if (!window.confirm('This permanently deletes your local vault and all stored keys. Continue?'))
     return
   vault.destroyVault()
   password.value = ''
@@ -69,63 +69,68 @@ function resetVault() {
 
 <template>
   <div class="lock-screen">
-    <div class="lock-card">
+    <UCard class="lock-card">
       <div class="lock-logo">🔐</div>
       <h1>gpg4web</h1>
       <p class="lock-sub">GnuPG in your browser, powered by Rust + WebAssembly</p>
 
-      <form @submit.prevent="submit">
-        <h2>{{ isSetup ? 'Create your vault' : 'Unlock your vault' }}</h2>
-        <p class="lock-note">
-          Your keyring is stored locally and sealed with a
-          <strong>post-quantum</strong> envelope (ML-KEM-768 + AES-256-GCM,
-          unlocked by your master password via Argon2id).
-        </p>
+      <h2>{{ isSetup ? 'Create your vault' : 'Unlock your vault' }}</h2>
+      <p class="lock-note">
+        Your keyring is stored locally and sealed with a
+        <strong>post-quantum</strong> envelope (ML-KEM-768 + AES-256-GCM,
+        unlocked by your master password via Argon2id).
+      </p>
 
-        <label>Master password</label>
-        <input
-          v-model="password"
-          type="password"
-          autocomplete="current-password"
-          placeholder="Enter master password"
-          autofocus
-        />
+      <label>Master password</label>
+      <UInput
+        v-model="password"
+        type="password"
+        icon="i-lucide-lock"
+        placeholder="Enter master password"
+        size="lg"
+        class="w-full"
+        @keyup.enter="submit"
+      />
 
-        <template v-if="isSetup">
-          <div class="strength">
-            <div
-              v-for="i in 4"
-              :key="i"
-              class="strength-bar"
-              :class="{ on: i <= strength }"
-              :style="i <= strength ? { background: strengthColor } : undefined"
-            />
-          </div>
-          <span class="strength-label" :style="{ color: strengthColor }">
-            {{ strengthLabel[strength] }}
-          </span>
-
-          <label>Confirm password</label>
-          <input
-            v-model="confirm"
-            type="password"
-            autocomplete="new-password"
-            placeholder="Repeat master password"
+      <template v-if="isSetup">
+        <div class="strength">
+          <div
+            v-for="i in 4"
+            :key="i"
+            class="strength-bar"
+            :class="{ on: i <= strength }"
+            :style="i <= strength ? { background: strengthColor } : undefined"
           />
-          <p class="warn">
-            ⚠ There is no recovery. If you forget this password your keys are
-            unrecoverable.
-          </p>
-        </template>
+        </div>
+        <span class="strength-label" :style="{ color: strengthColor }">
+          {{ strengthLabel[strength] }}
+        </span>
 
-        <button class="primary" type="submit" :disabled="busy">
-          {{ busy ? 'Working…' : isSetup ? 'Create vault' : 'Unlock' }}
-        </button>
-      </form>
+        <label>Confirm password</label>
+        <UInput
+          v-model="confirm"
+          type="password"
+          icon="i-lucide-lock"
+          placeholder="Repeat master password"
+          size="lg"
+          class="w-full"
+          @keyup.enter="submit"
+        />
+        <p class="warn">
+          ⚠ There is no recovery. If you forget this password your keys are
+          unrecoverable.
+        </p>
+      </template>
 
-      <button v-if="!isSetup" class="link danger-link" @click="resetVault">
-        Forgot password? Delete vault and start over
-      </button>
-    </div>
+      <UButton block size="lg" :loading="busy" class="lock-submit" @click="submit">
+        {{ isSetup ? 'Create vault' : 'Unlock' }}
+      </UButton>
+
+      <div v-if="!isSetup" class="lock-reset">
+        <UButton variant="link" color="neutral" size="sm" @click="resetVault">
+          Forgot password? Delete vault and start over
+        </UButton>
+      </div>
+    </UCard>
   </div>
 </template>

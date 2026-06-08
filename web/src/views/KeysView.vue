@@ -15,6 +15,24 @@ const showImport = ref(false)
 const query = ref('')
 const filter = ref<'all' | 'mine' | 'others'>('all')
 
+const filters = [
+  { key: 'all', label: 'All' },
+  { key: 'mine', label: 'My keys' },
+  { key: 'others', label: 'Others' },
+] as const
+
+function isPq(k: StoredKey): boolean {
+  return /MlKem|MlDsa|SlhDsa/i.test(
+    k.info.algorithm + k.info.subkeys.map((s) => s.algorithm).join(''),
+  )
+}
+const fmtDate = (ts: number) => new Date(ts * 1000).toLocaleDateString()
+function expiry(k: StoredKey): string {
+  if (!k.info.expiresAt) return 'never'
+  const d = new Date(k.info.expiresAt * 1000)
+  return (d.getTime() < Date.now() ? 'expired ' : '') + d.toLocaleDateString()
+}
+
 const filtered = computed(() => {
   let list = vault.keys
   if (filter.value === 'mine') list = list.filter((k) => k.secretKey)
@@ -30,31 +48,9 @@ const filtered = computed(() => {
   return list
 })
 
-function isPq(k: StoredKey): boolean {
-  return /MlKem|MlDsa|SlhDsa/i.test(
-    k.info.algorithm + k.info.subkeys.map((s) => s.algorithm).join(''),
-  )
-}
-
-function fmtDate(ts: number): string {
-  return new Date(ts * 1000).toLocaleDateString()
-}
-
-function expiry(k: StoredKey): string {
-  if (!k.info.expiresAt) return 'never'
-  const d = new Date(k.info.expiresAt * 1000)
-  const expired = d.getTime() < Date.now()
-  return (expired ? 'expired ' : '') + d.toLocaleDateString()
-}
-
 function exportGnupg() {
-  const blob = buildGnupgExport(vault.keys)
-  downloadBlob(blob, 'gnupg-home-export.zip')
+  downloadBlob(buildGnupgExport(vault.keys), 'gnupg-home-export.zip')
   toastSuccess('Exported .gnupg home archive')
-}
-
-function open(k: StoredKey) {
-  router.push(`/keys/${k.fingerprint}`)
 }
 </script>
 
@@ -63,28 +59,44 @@ function open(k: StoredKey) {
     <div class="view-head">
       <h1>Certificates</h1>
       <div class="toolbar">
-        <button class="primary" @click="showGenerate = true">＋ New key</button>
-        <button class="ghost" @click="showImport = true">⬇ Import</button>
-        <button class="ghost" :disabled="!vault.keys.length" @click="exportGnupg">
-          📦 Export .gnupg
-        </button>
+        <UButton icon="i-lucide-plus" @click="showGenerate = true">New key</UButton>
+        <UButton icon="i-lucide-download" color="neutral" variant="subtle" @click="showImport = true">
+          Import
+        </UButton>
+        <UButton
+          icon="i-lucide-package"
+          color="neutral"
+          variant="subtle"
+          :disabled="!vault.keys.length"
+          @click="exportGnupg"
+        >
+          Export .gnupg
+        </UButton>
       </div>
     </div>
 
     <div class="filters">
-      <input v-model="query" class="search" placeholder="Search name, email or fingerprint…" />
-      <div class="seg">
-        <button :class="{ on: filter === 'all' }" @click="filter = 'all'">All</button>
-        <button :class="{ on: filter === 'mine' }" @click="filter = 'mine'">My keys</button>
-        <button :class="{ on: filter === 'others' }" @click="filter = 'others'">Others</button>
-      </div>
+      <UInput
+        v-model="query"
+        icon="i-lucide-search"
+        placeholder="Search name, email or fingerprint…"
+        class="search"
+      />
+      <UButtonGroup>
+        <UButton
+          v-for="f in filters"
+          :key="f.key"
+          :color="filter === f.key ? 'primary' : 'neutral'"
+          :variant="filter === f.key ? 'solid' : 'outline'"
+          @click="filter = f.key"
+        >
+          {{ f.label }}
+        </UButton>
+      </UButtonGroup>
     </div>
 
     <div v-if="!filtered.length" class="empty">
-      <p v-if="!vault.keys.length">
-        No certificates yet. Create a new key pair or import an existing one.
-      </p>
-      <p v-else>No certificates match your search.</p>
+      {{ vault.keys.length ? 'No certificates match your search.' : 'No certificates yet. Create or import a key.' }}
     </div>
 
     <table v-else class="key-table">
@@ -95,33 +107,37 @@ function open(k: StoredKey) {
           <th>Key ID</th>
           <th>Created</th>
           <th>Expires</th>
-          <th></th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="k in filtered" :key="k.fingerprint" class="key-row" @click="open(k)">
+        <tr
+          v-for="k in filtered"
+          :key="k.fingerprint"
+          class="key-row"
+          @click="router.push(`/keys/${k.fingerprint}`)"
+        >
           <td>
             <div class="uid">
-              <span class="badge" :class="k.secretKey ? 'badge-secret' : 'badge-public'">
+              <UBadge
+                :color="k.secretKey ? 'warning' : 'info'"
+                variant="subtle"
+                size="sm"
+              >
                 {{ k.secretKey ? 'sec' : 'pub' }}
-              </span>
-              <span class="pq-badge" v-if="isPq(k)" title="Post-quantum key">🛡</span>
+              </UBadge>
+              <span v-if="isPq(k)" title="Post-quantum key">🛡</span>
               <span>{{ k.info.userIds[0] || '(no user id)' }}</span>
-            </div>
-            <div v-if="k.info.userIds.length > 1" class="uid-extra">
-              +{{ k.info.userIds.length - 1 }} more
             </div>
           </td>
           <td class="muted">{{ k.info.algorithm }}</td>
           <td class="mono small">{{ k.keyId.slice(-16) }}</td>
           <td class="muted">{{ fmtDate(k.info.createdAt) }}</td>
           <td class="muted">{{ expiry(k) }}</td>
-          <td class="muted">›</td>
         </tr>
       </tbody>
     </table>
 
-    <GenerateKeyDialog v-if="showGenerate" @close="showGenerate = false" @created="() => {}" />
-    <ImportKeyDialog v-if="showImport" @close="showImport = false" @imported="() => {}" />
+    <GenerateKeyDialog v-if="showGenerate" @close="showGenerate = false" />
+    <ImportKeyDialog v-if="showImport" @close="showImport = false" />
   </div>
 </template>

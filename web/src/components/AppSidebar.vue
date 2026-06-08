@@ -1,15 +1,16 @@
 <script setup lang="ts">
+import type { NavigationMenuItem } from '@nuxt/ui'
 import { coreVersion } from '@/crypto/core'
 
 defineProps<{ open: boolean }>()
 const emit = defineEmits<{ navigate: [] }>()
 
-const links = [
-  { to: '/keys', label: 'Certificates', icon: '🗝️' },
-  { to: '/notepad', label: 'Notepad', icon: '📝' },
-  { to: '/sign', label: 'Sign / Verify', icon: '✍️' },
-  { to: '/settings', label: 'Settings', icon: '⚙️' },
-  { to: '/about', label: 'About', icon: 'ℹ️' },
+const items: NavigationMenuItem[] = [
+  { label: 'Certificates', icon: 'i-lucide-key-round', to: '/keys' },
+  { label: 'Notepad', icon: 'i-lucide-notebook-pen', to: '/notepad' },
+  { label: 'Sign / Verify', icon: 'i-lucide-signature', to: '/sign' },
+  { label: 'Settings', icon: 'i-lucide-settings', to: '/settings' },
+  { label: 'About', icon: 'i-lucide-info', to: '/about' },
 ]
 </script>
 
@@ -22,19 +23,12 @@ const links = [
         <div class="brand-tag">Kleopatra, on the web</div>
       </div>
     </div>
-    <nav>
-      <router-link
-        v-for="l in links"
-        :key="l.to"
-        :to="l.to"
-        class="nav-item"
-        active-class="active"
-        @click="emit('navigate')"
-      >
-        <span class="nav-icon">{{ l.icon }}</span>
-        <span>{{ l.label }}</span>
-      </router-link>
-    </nav>
+    <UNavigationMenu
+      orientation="vertical"
+      :items="items"
+      class="sidebar-nav"
+      @click="emit('navigate')"
+    />
     <div class="sidebar-foot">{{ coreVersion() }}</div>
   </aside>
 </template>

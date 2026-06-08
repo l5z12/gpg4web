@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import AppModal from './AppModal.vue'
 import { generateKey, type KeyAlgorithm } from '@/crypto/core'
 import { useVault } from '@/stores/vault'
 import { toastError, toastSuccess } from '@/lib/toast'
 
-const emit = defineEmits<{ close: []; created: [] }>()
+const emit = defineEmits<{ close: [] }>()
 const vault = useVault()
 const busy = ref(false)
+const open = ref(true)
 
 const form = reactive({
   name: '',
@@ -18,37 +18,34 @@ const form = reactive({
   expireDays: 0,
 })
 
-const algorithms: { value: KeyAlgorithm; label: string; pq?: boolean }[] = [
-  { value: 'curve25519', label: 'Curve25519 / EdDSA (recommended, GnuPG compatible)' },
-  { value: 'ed25519', label: 'Ed25519 + X25519 (modern v6)' },
-  { value: 'rsa3072', label: 'RSA 3072' },
-  { value: 'rsa4096', label: 'RSA 4096' },
-  { value: 'rsa2048', label: 'RSA 2048' },
-  { value: 'nistp256', label: 'NIST P-256' },
-  { value: 'nistp384', label: 'NIST P-384' },
-  { value: 'nistp521', label: 'NIST P-521' },
-  { value: 'pqc', label: '🛡 Post-quantum: ML-DSA-65 + ML-KEM-768', pq: true },
-  { value: 'mldsa87-mlkem1024', label: '🛡 Post-quantum: ML-DSA-87 + ML-KEM-1024', pq: true },
-  { value: 'slhdsa128s-mlkem768', label: '🛡 Post-quantum: SLH-DSA-128s + ML-KEM-768', pq: true },
+const algorithms = [
+  { label: 'Curve25519 / EdDSA (recommended, GnuPG compatible)', value: 'curve25519' },
+  { label: 'Ed25519 + X25519 (modern v6)', value: 'ed25519' },
+  { label: 'RSA 3072', value: 'rsa3072' },
+  { label: 'RSA 4096', value: 'rsa4096' },
+  { label: 'RSA 2048', value: 'rsa2048' },
+  { label: 'NIST P-256', value: 'nistp256' },
+  { label: 'NIST P-384', value: 'nistp384' },
+  { label: 'NIST P-521', value: 'nistp521' },
+  { label: '🛡 Post-quantum: ML-DSA-65 + ML-KEM-768', value: 'pqc' },
+  { label: '🛡 Post-quantum: ML-DSA-87 + ML-KEM-1024', value: 'mldsa87-mlkem1024' },
+  { label: '🛡 Post-quantum: SLH-DSA-128s + ML-KEM-768', value: 'slhdsa128s-mlkem768' },
 ]
+
+function onOpenChange(v: boolean) {
+  if (!v && !busy.value) emit('close')
+}
 
 async function create() {
   if (busy.value) return
-  if (!form.name.trim()) {
-    toastError('Please enter a name')
-    return
-  }
-  if (form.passphrase !== form.passphrase2) {
-    toastError('Passphrases do not match')
-    return
-  }
+  if (!form.name.trim()) return toastError('Please enter a name')
+  if (form.passphrase !== form.passphrase2) return toastError('Passphrases do not match')
   const userId = form.email.trim()
     ? `${form.name.trim()} <${form.email.trim()}>`
     : form.name.trim()
 
   busy.value = true
-  // Defer so the UI can paint the "working" state before the (possibly slow,
-  // for RSA / SLH-DSA) generation blocks the main thread.
+  // Defer so the UI can paint before the (possibly slow) generation blocks.
   await new Promise((r) => setTimeout(r, 30))
   try {
     const key = generateKey({
@@ -59,7 +56,6 @@ async function create() {
     })
     vault.addGeneratedKey(key.publicKey, key.secretKey)
     toastSuccess(`Created key ${key.fingerprint.slice(-16)}`)
-    emit('created')
     emit('close')
   } catch (e) {
     toastError(e instanceof Error ? e.message : String(e))
@@ -70,38 +66,51 @@ async function create() {
 </script>
 
 <template>
-  <AppModal title="New key pair" @close="emit('close')">
-    <div class="form-grid">
-      <label>Name</label>
-      <input v-model="form.name" placeholder="Alice Example" />
-
-      <label>Email (optional)</label>
-      <input v-model="form.email" type="email" placeholder="alice@example.com" />
-
-      <label>Algorithm</label>
-      <select v-model="form.algorithm">
-        <option v-for="a in algorithms" :key="a.value" :value="a.value">{{ a.label }}</option>
-      </select>
-
-      <label>Expires in (days)</label>
-      <input v-model.number="form.expireDays" type="number" min="0" placeholder="0 = never" />
-
-      <label>Passphrase (optional)</label>
-      <input v-model="form.passphrase" type="password" autocomplete="new-password" placeholder="Protect the secret key" />
-
-      <label>Confirm passphrase</label>
-      <input v-model="form.passphrase2" type="password" autocomplete="new-password" />
-    </div>
-    <p class="hint">
-      RSA and SLH-DSA keys can take several seconds to generate. The page may
-      briefly freeze while the WASM core works.
-    </p>
+  <UModal
+    :open="open"
+    title="New key pair"
+    description="Generate an OpenPGP key pair locally in your browser."
+    @update:open="onOpenChange"
+  >
+    <template #body>
+      <div class="form-stack">
+        <UFormField label="Name">
+          <UInput v-model="form.name" placeholder="Alice Example" class="w-full" />
+        </UFormField>
+        <UFormField label="Email (optional)">
+          <UInput v-model="form.email" placeholder="alice@example.com" class="w-full" />
+        </UFormField>
+        <UFormField label="Algorithm">
+          <USelect v-model="form.algorithm" :items="algorithms" class="w-full" />
+        </UFormField>
+        <UFormField label="Expires in (days, 0 = never)">
+          <UInputNumber v-model="form.expireDays" :min="0" class="w-full" />
+        </UFormField>
+        <UFormField label="Passphrase (optional)">
+          <UInput
+            v-model="form.passphrase"
+            type="password"
+            placeholder="Protect the secret key"
+            class="w-full"
+          />
+        </UFormField>
+        <UFormField label="Confirm passphrase">
+          <UInput v-model="form.passphrase2" type="password" class="w-full" />
+        </UFormField>
+        <p class="hint">
+          RSA and SLH-DSA keys can take several seconds to generate; the page may
+          briefly freeze while the WASM core works.
+        </p>
+      </div>
+    </template>
 
     <template #footer>
-      <button class="ghost" @click="emit('close')">Cancel</button>
-      <button class="primary" :disabled="busy" @click="create">
-        {{ busy ? 'Generating…' : 'Create' }}
-      </button>
+      <div class="modal-actions">
+        <UButton color="neutral" variant="ghost" :disabled="busy" @click="emit('close')">
+          Cancel
+        </UButton>
+        <UButton :loading="busy" icon="i-lucide-key-round" @click="create">Create</UButton>
+      </div>
     </template>
-  </AppModal>
+  </UModal>
 </template>

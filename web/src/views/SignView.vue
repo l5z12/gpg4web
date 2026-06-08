@@ -1,43 +1,45 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import type { TabsItem } from '@nuxt/ui'
 import { useVault } from '@/stores/vault'
-import {
-  signCleartext,
-  signDetached,
-  verifyCleartext,
-  verifyDetached,
-} from '@/crypto/core'
+import { signCleartext, signDetached, verifyCleartext, verifyDetached } from '@/crypto/core'
 import { downloadText } from '@/lib/gnupg'
 import { toastError, toastSuccess } from '@/lib/toast'
 
 const vault = useVault()
-const mode = ref<'sign' | 'verify'>('sign')
 const sigStyle = ref<'cleartext' | 'detached'>('cleartext')
+const styles = [
+  { key: 'cleartext', label: 'Cleartext' },
+  { key: 'detached', label: 'Detached' },
+] as const
+
+const tabs: TabsItem[] = [
+  { label: 'Sign', value: 'sign', slot: 'sign', icon: 'i-lucide-signature' },
+  { label: 'Verify', value: 'verify', slot: 'verify', icon: 'i-lucide-badge-check' },
+]
+const tab = ref('sign')
 
 const text = ref('')
 const signKey = ref('')
 const signPass = ref('')
 const output = ref('')
 
-// verify
 const vText = ref('')
 const vSig = ref('')
 const vKey = ref('')
 const vResult = ref<{ ok: boolean; detail: string } | null>(null)
 
-const myKeys = computed(() => vault.ownKeys)
-const allKeys = computed(() => vault.keys)
+const myKeyItems = computed(() =>
+  vault.ownKeys.map((k) => ({ label: k.info.userIds[0] || k.keyId, value: k.fingerprint })),
+)
+const allKeyItems = computed(() =>
+  vault.keys.map((k) => ({ label: k.info.userIds[0] || k.keyId, value: k.fingerprint })),
+)
 
 function doSign() {
-  const sk = vault.keyByFingerprint(signKey.value)?.secretKey
-  if (!sk) {
-    toastError('Select your secret key')
-    return
-  }
-  if (!text.value) {
-    toastError('Nothing to sign')
-    return
-  }
+  const sk = signKey.value ? vault.keyByFingerprint(signKey.value)?.secretKey : undefined
+  if (!sk) return toastError('Select your secret key')
+  if (!text.value) return toastError('Nothing to sign')
   try {
     output.value =
       sigStyle.value === 'cleartext'
@@ -50,11 +52,8 @@ function doSign() {
 }
 
 function doVerify() {
-  const pub = vault.keyByFingerprint(vKey.value)?.publicKey
-  if (!pub) {
-    toastError('Select the signer’s key')
-    return
-  }
+  const pub = vKey.value ? vault.keyByFingerprint(vKey.value)?.publicKey : undefined
+  if (!pub) return toastError('Select the signer’s key')
   try {
     if (sigStyle.value === 'cleartext') {
       const r = verifyCleartext(vText.value, pub)
@@ -71,73 +70,73 @@ function doVerify() {
 
 <template>
   <div class="view">
-    <div class="view-head">
-      <h1>Sign &amp; Verify</h1>
-      <div class="seg">
-        <button :class="{ on: mode === 'sign' }" @click="mode = 'sign'">Sign</button>
-        <button :class="{ on: mode === 'verify' }" @click="mode = 'verify'">Verify</button>
-      </div>
-    </div>
+    <div class="view-head"><h1>Sign &amp; Verify</h1></div>
 
-    <div class="seg small-seg">
-      <button :class="{ on: sigStyle === 'cleartext' }" @click="sigStyle = 'cleartext'">
-        Cleartext
-      </button>
-      <button :class="{ on: sigStyle === 'detached' }" @click="sigStyle = 'detached'">
-        Detached
-      </button>
-    </div>
+    <UButtonGroup class="mb-4">
+      <UButton
+        v-for="s in styles"
+        :key="s.key"
+        :color="sigStyle === s.key ? 'primary' : 'neutral'"
+        :variant="sigStyle === s.key ? 'solid' : 'outline'"
+        @click="sigStyle = s.key"
+      >
+        {{ s.label }}
+      </UButton>
+    </UButtonGroup>
 
-    <!-- SIGN -->
-    <div v-if="mode === 'sign'" class="pad-grid">
-      <div class="pad-col">
-        <label>Text</label>
-        <textarea v-model="text" rows="12" placeholder="Text to sign…" />
-        <label>Sign with</label>
-        <select v-model="signKey">
-          <option value="">Select your secret key</option>
-          <option v-for="k in myKeys" :key="k.fingerprint" :value="k.fingerprint">
-            {{ k.info.userIds[0] || k.keyId }}
-          </option>
-        </select>
-        <input v-model="signPass" type="password" placeholder="Key passphrase (if any)" />
-        <button class="primary block" @click="doSign">✍️ Sign</button>
-      </div>
-      <div class="pad-col">
-        <label>Signature output</label>
-        <textarea :value="output" rows="20" readonly class="mono" />
-        <button class="ghost" :disabled="!output" @click="downloadText(output, sigStyle === 'detached' ? 'message.sig.asc' : 'message.asc')">
-          Download
-        </button>
-      </div>
-    </div>
-
-    <!-- VERIFY -->
-    <div v-else class="pad-grid">
-      <div class="pad-col">
-        <label>{{ sigStyle === 'cleartext' ? 'Signed message' : 'Original text' }}</label>
-        <textarea v-model="vText" rows="10" class="mono" />
-        <template v-if="sigStyle === 'detached'">
-          <label>Detached signature</label>
-          <textarea v-model="vSig" rows="6" class="mono" placeholder="-----BEGIN PGP SIGNATURE-----" />
-        </template>
-        <label>Signer’s key</label>
-        <select v-model="vKey">
-          <option value="">Select a key</option>
-          <option v-for="k in allKeys" :key="k.fingerprint" :value="k.fingerprint">
-            {{ k.info.userIds[0] || k.keyId }}
-          </option>
-        </select>
-        <button class="primary block" @click="doVerify">Verify</button>
-      </div>
-      <div class="pad-col">
-        <label>Result</label>
-        <div v-if="vResult" class="result-box" :class="vResult.ok ? 'good' : 'bad'">
-          <div class="result-icon">{{ vResult.ok ? '✓' : '✕' }}</div>
-          <div>{{ vResult.detail }}</div>
+    <UTabs v-model="tab" :items="tabs" class="w-full">
+      <template #sign>
+        <div class="pad-grid">
+          <div class="pad-col">
+            <label>Text</label>
+            <UTextarea v-model="text" :rows="11" class="w-full" placeholder="Text to sign…" />
+            <label>Sign with</label>
+            <USelect v-model="signKey" :items="myKeyItems" placeholder="Select your secret key" class="w-full" />
+            <UInput v-model="signPass" type="password" placeholder="Key passphrase (if any)" class="w-full mt-2" />
+            <UButton block icon="i-lucide-signature" class="mt-4" @click="doSign">Sign</UButton>
+          </div>
+          <div class="pad-col">
+            <label>Signature output</label>
+            <UTextarea :model-value="output" :rows="18" readonly class="w-full mono" />
+            <UButton
+              color="neutral"
+              variant="subtle"
+              :disabled="!output"
+              icon="i-lucide-download"
+              class="mt-2"
+              @click="downloadText(output, sigStyle === 'detached' ? 'message.sig.asc' : 'message.asc')"
+            >
+              Download
+            </UButton>
+          </div>
         </div>
-        <p v-else class="muted">Run a verification to see the result.</p>
-      </div>
-    </div>
+      </template>
+
+      <template #verify>
+        <div class="pad-grid">
+          <div class="pad-col">
+            <label>{{ sigStyle === 'cleartext' ? 'Signed message' : 'Original text' }}</label>
+            <UTextarea v-model="vText" :rows="9" class="w-full mono" />
+            <template v-if="sigStyle === 'detached'">
+              <label>Detached signature</label>
+              <UTextarea v-model="vSig" :rows="6" class="w-full mono" placeholder="-----BEGIN PGP SIGNATURE-----" />
+            </template>
+            <label>Signer’s key</label>
+            <USelect v-model="vKey" :items="allKeyItems" placeholder="Select a key" class="w-full" />
+            <UButton block icon="i-lucide-badge-check" class="mt-4" @click="doVerify">Verify</UButton>
+          </div>
+          <div class="pad-col">
+            <UAlert
+              v-if="vResult"
+              :color="vResult.ok ? 'success' : 'error'"
+              :icon="vResult.ok ? 'i-lucide-circle-check' : 'i-lucide-circle-x'"
+              :title="vResult.detail"
+              :description="vResult.ok ? 'The signature matches this key.' : 'Do not trust this content.'"
+            />
+            <p v-else class="muted">Run a verification to see the result.</p>
+          </div>
+        </div>
+      </template>
+    </UTabs>
   </div>
 </template>
