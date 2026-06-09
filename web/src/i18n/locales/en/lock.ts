@@ -23,7 +23,9 @@ export default {
   vaultCreated: 'Vault created and unlocked',
   unlockFailed: 'Unlock failed',
   vaultUnlocked: 'Vault unlocked',
+  resetTitle: 'Delete vault?',
   resetConfirm:
     'This permanently deletes your local vault and all stored keys. Continue?',
+  resetConfirmButton: 'Delete vault',
   vaultDeleted: 'Vault deleted. You can create a new one.',
 }

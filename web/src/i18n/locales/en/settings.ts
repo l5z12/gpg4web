@@ -30,6 +30,7 @@ export default {
   deleteVault: 'Delete vault',
   exportedGnupg: 'Exported .gnupg home archive',
   vaultBackup: 'Encrypted vault backup downloaded',
+  destroyTitle: 'Delete vault?',
   destroyConfirm:
     'This permanently deletes your vault and ALL stored keys. This cannot be undone. Continue?',
 }

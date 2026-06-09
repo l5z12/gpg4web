@@ -5,6 +5,7 @@ import { useVault } from '@/stores/vault'
 import { availableLocales, setLocale, type Locale } from '@/i18n'
 import { buildGnupgExport, downloadBlob } from '@/lib/gnupg'
 import { toastSuccess } from '@/lib/toast'
+import { confirmDialog } from '@/lib/confirm'
 
 const vault = useVault()
 const { t, locale } = useI18n()
@@ -65,8 +66,14 @@ function exportVault() {
   downloadBlob(blob, 'gpg4web-vault-backup.json')
   toastSuccess(t('settings.vaultBackup'))
 }
-function destroy() {
-  if (!window.confirm(t('settings.destroyConfirm'))) return
+async function destroy() {
+  const ok = await confirmDialog({
+    title: t('settings.destroyTitle'),
+    message: t('settings.destroyConfirm'),
+    confirmLabel: t('settings.deleteVault'),
+    danger: true,
+  })
+  if (!ok) return
   vault.destroyVault()
 }
 </script>

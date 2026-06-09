@@ -7,6 +7,7 @@ import { toast } from '@/lib/toast'
 import LockScreen from '@/components/LockScreen.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import AppToaster from '@/components/AppToaster.vue'
+import ConfirmHost from '@/components/ConfirmHost.vue'
 import WarningBanner from '@/components/WarningBanner.vue'
 
 const vault = useVault()
@@ -52,6 +53,7 @@ onMounted(async () => {
 <template>
   <UApp>
     <AppToaster />
+    <ConfirmHost />
 
     <div class="app-root">
       <WarningBanner />

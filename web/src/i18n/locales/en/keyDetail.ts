@@ -30,6 +30,8 @@ export default {
   copied: '{label} copied',
   fingerprintLabel: 'Fingerprint',
   publicKeyLabel: 'Public key',
+  removeTitle: 'Remove certificate?',
   removeConfirm: 'Remove this certificate from your vault?',
+  removeConfirmButton: 'Remove',
   removed: 'Certificate removed',
 }

@@ -22,6 +22,8 @@ export default {
   vaultCreated: '保险库已创建并解锁',
   unlockFailed: '解锁失败',
   vaultUnlocked: '保险库已解锁',
+  resetTitle: '删除保险库？',
   resetConfirm: '此操作将永久删除你的本地保险库及所有已存储的密钥。是否继续？',
+  resetConfirmButton: '删除保险库',
   vaultDeleted: '保险库已删除。你可以创建一个新的。',
 }

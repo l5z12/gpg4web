@@ -30,5 +30,6 @@ export default {
   deleteVault: '删除保险库',
   exportedGnupg: '已导出 .gnupg 主目录归档',
   vaultBackup: '已下载加密保险库备份',
+  destroyTitle: '删除保险库？',
   destroyConfirm: '此操作将永久删除你的保险库和所有已存储的密钥，且无法撤销。是否继续？',
 }

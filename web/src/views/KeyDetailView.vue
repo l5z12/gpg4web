@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { useVault } from '@/stores/vault'
 import { downloadText } from '@/lib/gnupg'
 import { toastSuccess } from '@/lib/toast'
+import { confirmDialog } from '@/lib/confirm'
 
 const props = defineProps<{ fingerprint: string }>()
 const { t } = useI18n()
@@ -28,9 +29,15 @@ function exportSec() {
   const secret = vault.getSecretKey(key.value.fingerprint)
   if (secret) downloadText(secret, `${key.value.fingerprint.slice(-16)}.sec.asc`)
 }
-function remove() {
+async function remove() {
   if (!key.value) return
-  if (!window.confirm(t('keyDetail.removeConfirm'))) return
+  const ok = await confirmDialog({
+    title: t('keyDetail.removeTitle'),
+    message: t('keyDetail.removeConfirm'),
+    confirmLabel: t('keyDetail.removeConfirmButton'),
+    danger: true,
+  })
+  if (!ok) return
   vault.removeKey(key.value.fingerprint)
   toastSuccess(t('keyDetail.removed'))
   router.push('/keys')

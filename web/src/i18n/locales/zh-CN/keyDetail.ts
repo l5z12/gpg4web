@@ -30,6 +30,8 @@ export default {
   copied: '已复制{label}',
   fingerprintLabel: '指纹',
   publicKeyLabel: '公钥',
+  removeTitle: '移除证书？',
   removeConfirm: '要从保险库中移除此证书吗？',
+  removeConfirmButton: '移除',
   removed: '证书已移除',
 }

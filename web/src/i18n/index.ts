@@ -9,6 +9,7 @@ import { createI18n } from 'vue-i18n'
 
 import enApp from './locales/en/app'
 import enNav from './locales/en/nav'
+import enDialog from './locales/en/dialog'
 import enLock from './locales/en/lock'
 import enWarning from './locales/en/warning'
 import enKeys from './locales/en/keys'
@@ -24,6 +25,7 @@ import enImport from './locales/en/import'
 
 import zhApp from './locales/zh-CN/app'
 import zhNav from './locales/zh-CN/nav'
+import zhDialog from './locales/zh-CN/dialog'
 import zhLock from './locales/zh-CN/lock'
 import zhWarning from './locales/zh-CN/warning'
 import zhKeys from './locales/zh-CN/keys'
@@ -56,6 +58,7 @@ const messages = {
   en: {
     app: enApp,
     nav: enNav,
+    dialog: enDialog,
     lock: enLock,
     warning: enWarning,
     keys: enKeys,
@@ -72,6 +75,7 @@ const messages = {
   'zh-CN': {
     app: zhApp,
     nav: zhNav,
+    dialog: zhDialog,
     lock: zhLock,
     warning: zhWarning,
     keys: zhKeys,

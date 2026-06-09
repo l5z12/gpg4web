@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useVault } from '@/stores/vault'
 import { toastError, toastSuccess } from '@/lib/toast'
+import { confirmDialog } from '@/lib/confirm'
 import logoUrl from '@/assets/mark.svg'
 
 const { t } = useI18n()
@@ -66,9 +67,14 @@ async function submit() {
   }
 }
 
-function resetVault() {
-  if (!window.confirm(t('lock.resetConfirm')))
-    return
+async function resetVault() {
+  const ok = await confirmDialog({
+    title: t('lock.resetTitle'),
+    message: t('lock.resetConfirm'),
+    confirmLabel: t('lock.resetConfirmButton'),
+    danger: true,
+  })
+  if (!ok) return
   vault.destroyVault()
   password.value = ''
   confirm.value = ''
