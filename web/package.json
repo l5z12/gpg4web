@@ -20,6 +20,7 @@
     "dev": "vite",
     "prebuild": "bun run icons && bun run wasm",
     "build": "vue-tsc -b && vite build",
+    "test": "bun test src/lib/gpgcli.test.ts",
     "preview": "vite preview --host"
   },
   "dependencies": {

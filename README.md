@@ -40,6 +40,17 @@ neither is broken by a quantum computer.
 
 ### UX
 - Kleopatra-style layout: certificate list, notepad, sign/verify, settings.
+- **`gpg` CLI simulator** (the **Console** view): a terminal that speaks the
+  real `gpg(1)` command grammar — long/short options, `--opt=value`,
+  unambiguous abbreviations, bundled flags (`-sea`), `--` terminator — with
+  shell pipes (`|`) and redirection (`>`, `>>`, `<`) over a per-session virtual
+  filesystem. Runs `--gen-key`/`--quick-generate-key`, `--list-keys`
+  (incl. `--with-colons`), `--encrypt`/`--decrypt`, `--sign`/`--clear-sign`/
+  `--detach-sign`/`--verify`, `--import`/`--export`, `--delete-keys`,
+  `--enarmor`/`--dearmor`, `--print-md`, `--gen-random`, `--list-packets`, and
+  more — all against your unlocked keyring, locally. Features that a browser
+  sandbox can't provide (keyservers, smartcards, the interactive `--edit-key`
+  menu) are recognised and reported honestly.
 - Responsive — desktop and mobile.
 - Hash-routed and fully static: host it from any path with no server.
 
@@ -56,8 +67,8 @@ gpg4web/
 └── web/                  # Vue 3 + Vite front-end
     ├── src/crypto/       #   typed wrapper around the WASM module
     ├── src/stores/       #   Pinia vault store (lock/unlock + persistence)
-    ├── src/lib/          #   .gnupg export, zip writer, toasts
-    ├── src/views/        #   Certificates, Notepad, Sign/Verify, Settings, About
+    ├── src/lib/          #   .gnupg export, zip writer, toasts, gpg CLI engine
+    ├── src/views/        #   Certificates, Notepad, Sign/Verify, Console, Settings, About
     └── src/wasm/         #   generated WASM artifacts (built by `bun run wasm`, gitignored)
 ```
 
