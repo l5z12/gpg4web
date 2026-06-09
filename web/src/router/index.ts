@@ -7,6 +7,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/notepad', name: 'notepad', component: () => import('@/views/NotepadView.vue') },
   { path: '/files', name: 'files', component: () => import('@/views/FilesView.vue') },
   { path: '/sign', name: 'sign', component: () => import('@/views/SignView.vue') },
+  { path: '/console', name: 'console', component: () => import('@/views/CliView.vue') },
   { path: '/settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
   { path: '/about', name: 'about', component: () => import('@/views/AboutView.vue') },
 ]
