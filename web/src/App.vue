@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useVault } from '@/stores/vault'
+import { useAutoLock } from '@/composables/useAutoLock'
+import { toast } from '@/lib/toast'
 import LockScreen from '@/components/LockScreen.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import AppToaster from '@/components/AppToaster.vue'
@@ -8,6 +10,23 @@ import AppToaster from '@/components/AppToaster.vue'
 const vault = useVault()
 const bootError = ref<string | null>(null)
 const sidebarOpen = ref(false)
+
+// Lock the vault after a period of inactivity (configurable in Settings).
+const { reset: resetIdle } = useAutoLock({
+  isUnlocked: () => vault.unlocked,
+  getMinutes: () => vault.settings.autoLockMinutes ?? 15,
+  onLock: () => {
+    vault.lock()
+    toast('Vault locked due to inactivity', 'info')
+  },
+})
+// Start the idle window fresh whenever the vault is unlocked.
+watch(
+  () => vault.unlocked,
+  (unlocked) => {
+    if (unlocked) resetIdle()
+  },
+)
 
 // Effective theme: follows the unlocked vault's setting, dark otherwise.
 // Nuxt UI keys its tokens off the `.dark` class on <html>.

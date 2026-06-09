@@ -18,6 +18,19 @@ const signKeyItems = computed(() => [
   ...vault.ownKeys.map((k) => ({ label: k.info.userIds[0] || k.keyId, value: k.fingerprint })),
 ])
 
+const autoLockItems = [
+  { label: 'Never', value: 0 },
+  { label: '1 minute', value: 1 },
+  { label: '5 minutes', value: 5 },
+  { label: '15 minutes', value: 15 },
+  { label: '30 minutes', value: 30 },
+  { label: '1 hour', value: 60 },
+]
+const autoLock = computed({
+  get: () => vault.settings.autoLockMinutes ?? 15,
+  set: (v: number) => vault.updateSettings({ autoLockMinutes: v }),
+})
+
 const isDark = computed({
   get: () => vault.settings.theme !== 'light',
   set: (v: boolean) => vault.updateSettings({ theme: v ? 'dark' : 'light' }),
@@ -66,6 +79,17 @@ function destroy() {
       </UFormField>
       <UFormField label="Default signing key" class="setting-row">
         <USelect v-model="defaultSignKey" :items="signKeyItems" class="setting-control" />
+      </UFormField>
+    </UCard>
+
+    <UCard class="panel">
+      <template #header><span>Security</span></template>
+      <UFormField
+        label="Auto-lock after inactivity"
+        description="Lock the vault automatically when idle. Also re-checks on wake from sleep."
+        class="setting-row"
+      >
+        <USelect v-model="autoLock" :items="autoLockItems" class="setting-control" />
       </UFormField>
     </UCard>
 

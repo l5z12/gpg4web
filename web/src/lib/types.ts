@@ -27,10 +27,13 @@ export interface AppSettings {
   defaultAlgorithm: string
   defaultSignKey: string | null
   theme: 'dark' | 'light'
+  /** Lock the vault after this many minutes of inactivity (0 = never). */
+  autoLockMinutes: number
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   defaultAlgorithm: 'curve25519',
   defaultSignKey: null,
   theme: 'dark',
+  autoLockMinutes: 15,
 }
