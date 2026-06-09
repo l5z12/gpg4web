@@ -106,7 +106,9 @@ body {
 .brand-name { font-weight: 700; }
 .brand-tag { font-size: 0.72rem; color: var(--ui-text-muted); }
 .sidebar-nav { flex: 1; }
-.sidebar-foot { margin-top: auto; padding: 10px 10px 0; font-size: 0.7rem; color: var(--ui-text-dimmed); }
+.sidebar-foot { margin-top: auto; padding: 10px 10px 0; font-size: 0.7rem; color: var(--ui-text-dimmed); display: flex; flex-direction: column; gap: 4px; }
+.sidebar-repo { display: inline-flex; align-items: center; gap: 5px; color: var(--ui-text-muted); text-decoration: none; }
+.sidebar-repo:hover { color: var(--ui-primary); }
 .scrim { display: none; }
 .content { flex: 1; overflow: auto; padding: 26px 30px; }
 

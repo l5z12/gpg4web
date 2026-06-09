@@ -43,6 +43,37 @@ import { coreVersion } from '@/crypto/core'
     </UCard>
 
     <UCard class="panel">
+      <template #header><span>Source &amp; license</span></template>
+      <p>
+        gpg4web is <strong>free software</strong>, released under the
+        <strong>GNU General Public License v3.0 (or later)</strong>. The complete source
+        code is available on GitHub — contributions and audits are welcome.
+      </p>
+      <div class="row mt-3">
+        <UButton
+          icon="i-lucide-github"
+          color="neutral"
+          variant="subtle"
+          to="https://github.com/l5z12/gpg4web"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          github.com/l5z12/gpg4web
+        </UButton>
+        <UButton
+          icon="i-lucide-scale"
+          color="neutral"
+          variant="subtle"
+          to="https://www.gnu.org/licenses/gpl-3.0.html"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          GPL-3.0-or-later
+        </UButton>
+      </div>
+    </UCard>
+
+    <UCard class="panel">
       <template #header><span>Built with</span></template>
       <p class="muted">rPGP · ml-kem · aes-gcm · argon2 · wasm-bindgen · Vue 3 · Nuxt UI · Vite · Pinia</p>
     </UCard>

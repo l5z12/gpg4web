@@ -30,6 +30,16 @@ const items: NavigationMenuItem[] = [
       class="sidebar-nav"
       @click="emit('navigate')"
     />
-    <div class="sidebar-foot">{{ coreVersion() }}</div>
+    <div class="sidebar-foot">
+      <a
+        class="sidebar-repo"
+        href="https://github.com/l5z12/gpg4web"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <UIcon name="i-lucide-github" /> l5z12/gpg4web
+      </a>
+      <div>{{ coreVersion() }} · GPL-3.0</div>
+    </div>
   </aside>
 </template>
