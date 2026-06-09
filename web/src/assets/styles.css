@@ -215,6 +215,8 @@ body {
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; width: 100%; }
 .setting-row { margin-bottom: 14px; }
 .setting-control { max-width: 360px; }
+.expiry-row { display: flex; align-items: center; gap: 12px; }
+.expiry-date { max-width: 200px; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 820px) {

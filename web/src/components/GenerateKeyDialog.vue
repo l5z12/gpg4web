@@ -9,13 +9,25 @@ const vault = useVault()
 const busy = ref(false)
 const open = ref(true)
 
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+// Kleopatra defaults a new key to expire in two years.
+const defaultExpiry = (() => {
+  const d = new Date()
+  d.setFullYear(d.getFullYear() + 2)
+  return isoDate(d)
+})()
+const minExpiry = isoDate(new Date(Date.now() + 86_400_000))
+
 const form = reactive({
   name: '',
   email: '',
   algorithm: (vault.settings.defaultAlgorithm as KeyAlgorithm) || 'curve25519',
   passphrase: '',
   passphrase2: '',
-  expireDays: 0,
+  expires: true,
+  validUntil: defaultExpiry,
 })
 
 const algorithms = [
@@ -44,6 +56,15 @@ async function create() {
     ? `${form.name.trim()} <${form.email.trim()}>`
     : form.name.trim()
 
+  // Convert the "valid until" date into the number of days the core expects.
+  let expireDays = 0
+  if (form.expires && form.validUntil) {
+    const until = new Date(`${form.validUntil}T23:59:59`).getTime()
+    if (Number.isNaN(until)) return toastError('Invalid expiry date')
+    expireDays = Math.ceil((until - Date.now()) / 86_400_000)
+    if (expireDays < 1) return toastError('Expiry date must be in the future')
+  }
+
   busy.value = true
   // Defer so the UI can paint before the (possibly slow) generation blocks.
   await new Promise((r) => setTimeout(r, 30))
@@ -52,7 +73,7 @@ async function create() {
       userId,
       algorithm: form.algorithm,
       passphrase: form.passphrase,
-      expireDays: Number(form.expireDays) || 0,
+      expireDays,
     })
     vault.addGeneratedKey(key.publicKey, key.secretKey)
     toastSuccess(`Created key ${key.fingerprint.slice(-16)}`)
@@ -83,8 +104,18 @@ async function create() {
         <UFormField label="Algorithm">
           <USelect v-model="form.algorithm" :items="algorithms" class="w-full" />
         </UFormField>
-        <UFormField label="Expires in (days, 0 = never)">
-          <UInputNumber v-model="form.expireDays" :min="0" class="w-full" />
+        <UFormField label="Key expires">
+          <div class="expiry-row">
+            <USwitch v-model="form.expires" />
+            <UInput
+              v-if="form.expires"
+              v-model="form.validUntil"
+              type="date"
+              :min="minExpiry"
+              class="expiry-date"
+            />
+            <span v-else class="muted small">Key never expires</span>
+          </div>
         </UFormField>
         <UFormField label="Passphrase (optional)">
           <UInput
