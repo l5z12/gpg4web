@@ -1,0 +1,40 @@
+{
+  "name": "gpg4web",
+  "version": "0.1.0",
+  "description": "GNU Privacy Guard that runs in your browser — Rust + WASM OpenPGP with a post-quantum guarded vault.",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/l5z12/gpg4web",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/l5z12/gpg4web.git"
+  },
+  "bugs": {
+    "url": "https://github.com/l5z12/gpg4web/issues"
+  },
+  "packageManager": "bun@1.3.11",
+  "scripts": {
+    "wasm": "wasm-pack build ../crypto-core --target web --release --out-dir ../web/src/wasm && bun scripts/fix-wasm-dts.mjs",
+    "icons": "bun scripts/build-icons.mjs",
+    "dev": "vite",
+    "prebuild": "bun run icons && bun run wasm",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview --host"
+  },
+  "dependencies": {
+    "@iconify/vue": "^5.0.1",
+    "@nuxt/ui": "^4.8.2",
+    "pinia": "^2.2.6",
+    "vue": "^3.5.13",
+    "vue-router": "^4.4.5"
+  },
+  "devDependencies": {
+    "@iconify-json/lucide": "^1.2.111",
+    "@iconify/utils": "^3.1.3",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "~5.6.3",
+    "vite": "^6.0.3",
+    "vue-tsc": "^2.1.10"
+  }
+}

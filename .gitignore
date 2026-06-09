@@ -141,3 +141,15 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# ---- gpg4web project-specific ----
+# Rust / wasm build output
+/crypto-core/target/
+# Vite production build
+/web/dist/
+# Generated Rust → WASM artifacts (built by `bun run wasm`, never committed)
+/web/src/wasm/
+
+# Nuxt UI auto-generated type declarations
+/web/auto-imports.d.ts
+/web/components.d.ts
