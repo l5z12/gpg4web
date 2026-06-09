@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
 import { coreVersion } from '@/crypto/core'
+import logoDark from '@/assets/logo-horizontal-dark.svg'
+import logoLight from '@/assets/logo-horizontal-light.svg'
 
 defineProps<{ open: boolean }>()
 const emit = defineEmits<{ navigate: [] }>()
@@ -19,11 +21,8 @@ const items: NavigationMenuItem[] = [
 <template>
   <aside class="sidebar" :class="{ open }">
     <div class="sidebar-brand">
-      <span class="brand-mark">🔐</span>
-      <div>
-        <div class="brand-name">gpg4web</div>
-        <div class="brand-tag">Kleopatra, on the web</div>
-      </div>
+      <img :src="logoDark" class="brand-lockup brand-lockup-dark" alt="gpg4web" />
+      <img :src="logoLight" class="brand-lockup brand-lockup-light" alt="gpg4web" />
     </div>
     <UNavigationMenu
       orientation="vertical"

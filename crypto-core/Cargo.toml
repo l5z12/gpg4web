@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "OpenPGP + post-quantum vault crypto core for gpg4web, compiled to WebAssembly"
 license = "GPL-3.0-or-later"
+repository = "https://github.com/l5z12/gpg4web"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

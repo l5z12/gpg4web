@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useVault } from '@/stores/vault'
 import { toastError, toastSuccess } from '@/lib/toast'
+import logoUrl from '@/assets/mark.svg'
 
 const vault = useVault()
 const password = ref('')
@@ -70,7 +71,7 @@ function resetVault() {
 <template>
   <div class="lock-screen">
     <UCard class="lock-card">
-      <div class="lock-logo">🔐</div>
+      <img :src="logoUrl" class="lock-logo" alt="gpg4web" width="76" height="76" />
       <h1>gpg4web</h1>
       <p class="lock-sub">GnuPG in your browser, powered by Rust + WebAssembly</p>
 

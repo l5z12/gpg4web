@@ -60,7 +60,7 @@ body {
   padding: 20px;
 }
 .lock-card { width: 100%; max-width: 430px; }
-.lock-card .lock-logo { font-size: 2.6rem; text-align: center; }
+.lock-card .lock-logo { display: block; width: 76px; height: 76px; margin: 0 auto 8px; }
 .lock-card h1 { margin: 6px 0 2px; font-size: 1.6rem; text-align: center; }
 .lock-sub { color: var(--ui-text-muted); margin: 0 0 18px; font-size: 0.9rem; text-align: center; }
 .lock-card h2 { font-size: 1.1rem; margin: 8px 0; }
@@ -101,10 +101,13 @@ body {
   flex-direction: column;
   padding: 14px 10px;
 }
-.sidebar-brand { display: flex; gap: 10px; align-items: center; padding: 6px 10px 16px; }
-.brand-mark { font-size: 1.6rem; }
-.brand-name { font-weight: 700; }
-.brand-tag { font-size: 0.72rem; color: var(--ui-text-muted); }
+.sidebar-brand { display: flex; align-items: center; padding: 6px 8px 18px; }
+.brand-lockup { display: block; width: 100%; max-width: 200px; height: auto; }
+/* Theme-swap the horizontal lockup: the .dark class is set on <html>. */
+.brand-lockup-dark { display: none; }
+.brand-lockup-light { display: block; }
+.dark .brand-lockup-dark { display: block; }
+.dark .brand-lockup-light { display: none; }
 .sidebar-nav { flex: 1; }
 .sidebar-foot { margin-top: auto; padding: 10px 10px 0; font-size: 0.7rem; color: var(--ui-text-dimmed); display: flex; flex-direction: column; gap: 4px; }
 .sidebar-repo { display: inline-flex; align-items: center; gap: 5px; color: var(--ui-text-muted); text-decoration: none; }
