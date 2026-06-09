@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { generateKey, type KeyAlgorithm } from '@/crypto/core'
 import { useVault } from '@/stores/vault'
 import { toastError, toastSuccess } from '@/lib/toast'
+
+const { t } = useI18n()
 
 const emit = defineEmits<{ close: [] }>()
 const vault = useVault()
@@ -30,19 +33,19 @@ const form = reactive({
   validUntil: defaultExpiry,
 })
 
-const algorithms = [
-  { label: 'Curve25519 / EdDSA (recommended, GnuPG compatible)', value: 'curve25519' },
-  { label: 'Ed25519 + X25519 (modern v6)', value: 'ed25519' },
-  { label: 'RSA 3072', value: 'rsa3072' },
-  { label: 'RSA 4096', value: 'rsa4096' },
-  { label: 'RSA 2048', value: 'rsa2048' },
-  { label: 'NIST P-256', value: 'nistp256' },
-  { label: 'NIST P-384', value: 'nistp384' },
-  { label: 'NIST P-521', value: 'nistp521' },
-  { label: '🛡 Post-quantum: ML-DSA-65 + ML-KEM-768', value: 'pqc' },
-  { label: '🛡 Post-quantum: ML-DSA-87 + ML-KEM-1024', value: 'mldsa87-mlkem1024' },
-  { label: '🛡 Post-quantum: SLH-DSA-128s + ML-KEM-768', value: 'slhdsa128s-mlkem768' },
-]
+const algorithms = computed(() => [
+  { label: t('generate.algCurve25519'), value: 'curve25519' },
+  { label: t('generate.algEd25519'), value: 'ed25519' },
+  { label: t('generate.algRsa3072'), value: 'rsa3072' },
+  { label: t('generate.algRsa4096'), value: 'rsa4096' },
+  { label: t('generate.algRsa2048'), value: 'rsa2048' },
+  { label: t('generate.algNistP256'), value: 'nistp256' },
+  { label: t('generate.algNistP384'), value: 'nistp384' },
+  { label: t('generate.algNistP521'), value: 'nistp521' },
+  { label: t('generate.algPqc'), value: 'pqc' },
+  { label: t('generate.algMldsa87Mlkem1024'), value: 'mldsa87-mlkem1024' },
+  { label: t('generate.algSlhdsa128sMlkem768'), value: 'slhdsa128s-mlkem768' },
+])
 
 function onOpenChange(v: boolean) {
   if (!v && !busy.value) emit('close')
@@ -50,8 +53,8 @@ function onOpenChange(v: boolean) {
 
 async function create() {
   if (busy.value) return
-  if (!form.name.trim()) return toastError('Please enter a name')
-  if (form.passphrase !== form.passphrase2) return toastError('Passphrases do not match')
+  if (!form.name.trim()) return toastError(t('generate.errName'))
+  if (form.passphrase !== form.passphrase2) return toastError(t('generate.errPassphraseMismatch'))
   const userId = form.email.trim()
     ? `${form.name.trim()} <${form.email.trim()}>`
     : form.name.trim()
@@ -60,9 +63,9 @@ async function create() {
   let expireDays = 0
   if (form.expires && form.validUntil) {
     const until = new Date(`${form.validUntil}T23:59:59`).getTime()
-    if (Number.isNaN(until)) return toastError('Invalid expiry date')
+    if (Number.isNaN(until)) return toastError(t('generate.errInvalidExpiry'))
     expireDays = Math.ceil((until - Date.now()) / 86_400_000)
-    if (expireDays < 1) return toastError('Expiry date must be in the future')
+    if (expireDays < 1) return toastError(t('generate.errExpiryFuture'))
   }
 
   busy.value = true
@@ -76,7 +79,7 @@ async function create() {
       expireDays,
     })
     vault.addGeneratedKey(key.publicKey, key.secretKey)
-    toastSuccess(`Created key ${key.fingerprint.slice(-16)}`)
+    toastSuccess(t('generate.created', { id: key.fingerprint.slice(-16) }))
     emit('close')
   } catch (e) {
     toastError(e instanceof Error ? e.message : String(e))
@@ -89,22 +92,22 @@ async function create() {
 <template>
   <UModal
     :open="open"
-    title="New key pair"
-    description="Generate an OpenPGP key pair locally in your browser."
+    :title="t('generate.title')"
+    :description="t('generate.description')"
     @update:open="onOpenChange"
   >
     <template #body>
       <div class="form-stack">
-        <UFormField label="Name">
-          <UInput v-model="form.name" placeholder="Alice Example" class="w-full" />
+        <UFormField :label="t('generate.name')">
+          <UInput v-model="form.name" :placeholder="t('generate.namePlaceholder')" class="w-full" />
         </UFormField>
-        <UFormField label="Email (optional)">
-          <UInput v-model="form.email" placeholder="alice@example.com" class="w-full" />
+        <UFormField :label="t('generate.email')">
+          <UInput v-model="form.email" :placeholder="t('generate.emailPlaceholder')" class="w-full" />
         </UFormField>
-        <UFormField label="Algorithm">
+        <UFormField :label="t('generate.algorithm')">
           <USelect v-model="form.algorithm" :items="algorithms" class="w-full" />
         </UFormField>
-        <UFormField label="Key expires">
+        <UFormField :label="t('generate.expires')">
           <div class="expiry-row">
             <USwitch v-model="form.expires" />
             <UInput
@@ -114,23 +117,22 @@ async function create() {
               :min="minExpiry"
               class="expiry-date"
             />
-            <span v-else class="muted small">Key never expires</span>
+            <span v-else class="muted small">{{ t('generate.neverExpires') }}</span>
           </div>
         </UFormField>
-        <UFormField label="Passphrase (optional)">
+        <UFormField :label="t('generate.passphrase')">
           <UInput
             v-model="form.passphrase"
             type="password"
-            placeholder="Protect the secret key"
+            :placeholder="t('generate.passphrasePlaceholder')"
             class="w-full"
           />
         </UFormField>
-        <UFormField label="Confirm passphrase">
+        <UFormField :label="t('generate.confirmPassphrase')">
           <UInput v-model="form.passphrase2" type="password" class="w-full" />
         </UFormField>
         <p class="hint">
-          RSA and SLH-DSA keys can take several seconds to generate; the page may
-          briefly freeze while the WASM core works.
+          {{ t('generate.hint') }}
         </p>
       </div>
     </template>
@@ -138,9 +140,9 @@ async function create() {
     <template #footer>
       <div class="modal-actions">
         <UButton color="neutral" variant="ghost" :disabled="busy" @click="emit('close')">
-          Cancel
+          {{ t('generate.cancel') }}
         </UButton>
-        <UButton :loading="busy" icon="i-lucide-key-round" @click="create">Create</UButton>
+        <UButton :loading="busy" icon="i-lucide-key-round" @click="create">{{ t('generate.create') }}</UButton>
       </div>
     </template>
   </UModal>

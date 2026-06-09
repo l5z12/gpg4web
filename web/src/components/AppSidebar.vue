@@ -1,21 +1,24 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { coreVersion } from '@/crypto/core'
 import logoDark from '@/assets/logo-horizontal-dark.svg'
 import logoLight from '@/assets/logo-horizontal-light.svg'
 
 defineProps<{ open: boolean }>()
 const emit = defineEmits<{ navigate: [] }>()
+const { t } = useI18n()
 
-const items: NavigationMenuItem[] = [
-  { label: 'Certificates', icon: 'i-lucide-key-round', to: '/keys' },
-  { label: 'Notepad', icon: 'i-lucide-notebook-pen', to: '/notepad' },
-  { label: 'Files', icon: 'i-lucide-file-lock', to: '/files' },
-  { label: 'Sign / Verify', icon: 'i-lucide-signature', to: '/sign' },
-  { label: 'Console', icon: 'i-lucide-terminal', to: '/console' },
-  { label: 'Settings', icon: 'i-lucide-settings', to: '/settings' },
-  { label: 'About', icon: 'i-lucide-info', to: '/about' },
-]
+const items = computed<NavigationMenuItem[]>(() => [
+  { label: t('nav.certificates'), icon: 'i-lucide-key-round', to: '/keys' },
+  { label: t('nav.notepad'), icon: 'i-lucide-notebook-pen', to: '/notepad' },
+  { label: t('nav.files'), icon: 'i-lucide-file-lock', to: '/files' },
+  { label: t('nav.signVerify'), icon: 'i-lucide-signature', to: '/sign' },
+  { label: t('nav.console'), icon: 'i-lucide-terminal', to: '/console' },
+  { label: t('nav.settings'), icon: 'i-lucide-settings', to: '/settings' },
+  { label: t('nav.about'), icon: 'i-lucide-info', to: '/about' },
+])
 </script>
 
 <template>

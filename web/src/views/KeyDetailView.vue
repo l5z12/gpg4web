@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useVault } from '@/stores/vault'
 import { downloadText } from '@/lib/gnupg'
 import { toastSuccess } from '@/lib/toast'
 
 const props = defineProps<{ fingerprint: string }>()
+const { t } = useI18n()
 const vault = useVault()
 const router = useRouter()
 
@@ -16,7 +18,7 @@ const fmtDate = (ts: number | null) => (ts ? new Date(ts * 1000).toLocaleString(
 
 async function copy(text: string, label: string) {
   await navigator.clipboard.writeText(text)
-  toastSuccess(`${label} copied`)
+  toastSuccess(t('keyDetail.copied', { label }))
 }
 function exportPub() {
   if (key.value) downloadText(key.value.publicKey, `${key.value.fingerprint.slice(-16)}.pub.asc`)
@@ -28,9 +30,9 @@ function exportSec() {
 }
 function remove() {
   if (!key.value) return
-  if (!window.confirm('Remove this certificate from your vault?')) return
+  if (!window.confirm(t('keyDetail.removeConfirm'))) return
   vault.removeKey(key.value.fingerprint)
-  toastSuccess('Certificate removed')
+  toastSuccess(t('keyDetail.removed'))
   router.push('/keys')
 }
 function toggleTrust() {
@@ -40,17 +42,17 @@ function toggleTrust() {
 
 <template>
   <div v-if="!key" class="view">
-    <p>Certificate not found. <router-link to="/keys">Back to certificates</router-link></p>
+    <p>{{ t('keyDetail.notFound') }} <router-link to="/keys">{{ t('keyDetail.backToCertificates') }}</router-link></p>
   </div>
   <div v-else class="view">
     <div class="view-head">
       <div>
-        <router-link to="/keys" class="back">‹ Certificates</router-link>
-        <h1>{{ key.info.userIds[0] || '(no user id)' }}</h1>
+        <router-link to="/keys" class="back">{{ t('keyDetail.backLink') }}</router-link>
+        <h1>{{ key.info.userIds[0] || t('keyDetail.noUserId') }}</h1>
       </div>
       <div class="toolbar">
         <UButton color="neutral" variant="subtle" icon="i-lucide-download" @click="exportPub">
-          Export public
+          {{ t('keyDetail.exportPublic') }}
         </UButton>
         <UButton
           v-if="key.secretKeyEnc"
@@ -59,41 +61,41 @@ function toggleTrust() {
           icon="i-lucide-download"
           @click="exportSec"
         >
-          Export secret
+          {{ t('keyDetail.exportSecret') }}
         </UButton>
-        <UButton color="error" variant="soft" icon="i-lucide-trash-2" @click="remove">Delete</UButton>
+        <UButton color="error" variant="soft" icon="i-lucide-trash-2" @click="remove">{{ t('keyDetail.delete') }}</UButton>
       </div>
     </div>
 
     <UCard class="panel">
-      <template #header><span>Identity</span></template>
+      <template #header><span>{{ t('keyDetail.identity') }}</span></template>
       <div class="kv">
-        <span>Type</span>
+        <span>{{ t('keyDetail.type') }}</span>
         <UBadge :color="key.secretKeyEnc ? 'warning' : 'info'" variant="subtle">
-          {{ key.secretKeyEnc ? 'Key pair (public + secret)' : 'Public key' }}
+          {{ key.secretKeyEnc ? t('keyDetail.keyPair') : t('keyDetail.publicKey') }}
         </UBadge>
       </div>
-      <div class="kv"><span>Algorithm</span><span>{{ key.info.algorithm }}</span></div>
-      <div class="kv"><span>Created</span><span>{{ fmtDate(key.info.createdAt) }}</span></div>
-      <div class="kv"><span>Expires</span><span>{{ fmtDate(key.info.expiresAt) }}</span></div>
+      <div class="kv"><span>{{ t('keyDetail.algorithm') }}</span><span>{{ key.info.algorithm }}</span></div>
+      <div class="kv"><span>{{ t('keyDetail.created') }}</span><span>{{ fmtDate(key.info.createdAt) }}</span></div>
+      <div class="kv"><span>{{ t('keyDetail.expires') }}</span><span>{{ fmtDate(key.info.expiresAt) }}</span></div>
       <div class="kv">
-        <span>Capabilities</span>
+        <span>{{ t('keyDetail.capabilities') }}</span>
         <span class="chips">
-          <UBadge v-if="key.info.canSign" color="neutral" variant="subtle">Sign</UBadge>
-          <UBadge v-if="key.info.canEncrypt" color="neutral" variant="subtle">Encrypt</UBadge>
+          <UBadge v-if="key.info.canSign" color="neutral" variant="subtle">{{ t('keyDetail.sign') }}</UBadge>
+          <UBadge v-if="key.info.canEncrypt" color="neutral" variant="subtle">{{ t('keyDetail.encrypt') }}</UBadge>
         </span>
       </div>
       <div class="kv">
-        <span>Trust</span>
+        <span>{{ t('keyDetail.trust') }}</span>
         <UButton variant="link" :icon="key.trusted ? 'i-lucide-star' : 'i-lucide-star-off'" @click="toggleTrust">
-          {{ key.trusted ? 'Trusted' : 'Mark trusted' }}
+          {{ key.trusted ? t('keyDetail.trusted') : t('keyDetail.markTrusted') }}
         </UButton>
       </div>
     </UCard>
 
     <UCard class="panel">
-      <template #header><span>Fingerprint &amp; User IDs</span></template>
-      <code class="fingerprint" @click="copy(key.fingerprint, 'Fingerprint')">
+      <template #header><span>{{ t('keyDetail.fingerprintUserIds') }}</span></template>
+      <code class="fingerprint" @click="copy(key.fingerprint, t('keyDetail.fingerprintLabel'))">
         {{ fmtFpr(key.fingerprint) }}
       </code>
       <ul class="uid-list">
@@ -102,10 +104,10 @@ function toggleTrust() {
     </UCard>
 
     <UCard class="panel">
-      <template #header><span>Subkeys</span></template>
+      <template #header><span>{{ t('keyDetail.subkeys') }}</span></template>
       <table class="key-table">
         <thead>
-          <tr><th>Key ID</th><th>Algorithm</th><th>Usage</th></tr>
+          <tr><th>{{ t('keyDetail.colKeyId') }}</th><th>{{ t('keyDetail.colAlgorithm') }}</th><th>{{ t('keyDetail.colUsage') }}</th></tr>
         </thead>
         <tbody>
           <tr v-for="s in key.info.subkeys" :key="s.fingerprint">
@@ -113,12 +115,12 @@ function toggleTrust() {
             <td>{{ s.algorithm }}</td>
             <td>
               <span class="chips">
-                <UBadge v-if="s.canSign" color="neutral" variant="subtle">Sign</UBadge>
-                <UBadge v-if="s.canEncrypt" color="neutral" variant="subtle">Encrypt</UBadge>
+                <UBadge v-if="s.canSign" color="neutral" variant="subtle">{{ t('keyDetail.sign') }}</UBadge>
+                <UBadge v-if="s.canEncrypt" color="neutral" variant="subtle">{{ t('keyDetail.encrypt') }}</UBadge>
               </span>
             </td>
           </tr>
-          <tr v-if="!key.info.subkeys.length"><td colspan="3" class="muted">No subkeys</td></tr>
+          <tr v-if="!key.info.subkeys.length"><td colspan="3" class="muted">{{ t('keyDetail.noSubkeys') }}</td></tr>
         </tbody>
       </table>
     </UCard>
@@ -126,9 +128,9 @@ function toggleTrust() {
     <UCard class="panel">
       <template #header>
         <div class="card-header-row">
-          <span>Armored public key</span>
-          <UButton size="xs" color="neutral" variant="subtle" icon="i-lucide-copy" @click="copy(key.publicKey, 'Public key')">
-            Copy
+          <span>{{ t('keyDetail.armoredPublicKey') }}</span>
+          <UButton size="xs" color="neutral" variant="subtle" icon="i-lucide-copy" @click="copy(key.publicKey, t('keyDetail.publicKeyLabel'))">
+            {{ t('keyDetail.copy') }}
           </UButton>
         </div>
       </template>

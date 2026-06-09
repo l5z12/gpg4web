@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, shallowRef } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useVault } from '@/stores/vault'
 import { GpgShell, type CliKey, type KeyringPort, type ShellIO } from '@/lib/gpgcli'
 import { downloadBlob } from '@/lib/gnupg'
 import { toastError } from '@/lib/toast'
 
+const { t } = useI18n()
 const vault = useVault()
 
 // --- Terminal scrollback ----------------------------------------------------
@@ -218,7 +220,7 @@ function uploadFiles(e: Event) {
 
 function downloadVfs(name: string) {
   const data = shell.value.vfs.get(name)
-  if (!data) return toastError('File not found')
+  if (!data) return toastError(t('console.fileNotFound'))
   downloadBlob(new Blob([data as BlobPart]), name)
 }
 
@@ -234,10 +236,10 @@ onMounted(() => {
 <template>
   <div class="view cli-view">
     <div class="view-head">
-      <h1>Console</h1>
+      <h1>{{ t('console.title') }}</h1>
       <div class="toolbar">
         <UButton color="neutral" variant="subtle" icon="i-lucide-eraser" @click="lines = []">
-          Clear
+          {{ t('console.clear') }}
         </UButton>
       </div>
     </div>
@@ -268,15 +270,14 @@ onMounted(() => {
 
       <aside class="cli-side">
         <div class="side-head">
-          <span>Virtual filesystem</span>
+          <span>{{ t('console.virtualFilesystem') }}</span>
           <label class="upload-btn">
             <input type="file" multiple class="hidden" @change="uploadFiles" />
-            <UIcon name="i-lucide-upload" /> Upload
+            <UIcon name="i-lucide-upload" /> {{ t('console.upload') }}
           </label>
         </div>
         <p v-if="!vfsFiles.length" class="muted small">
-          No files yet. Outputs from <code>gpg -e</code>, <code>--export</code>, redirection
-          (<code>&gt; file</code>) and uploads appear here.
+          {{ t('console.noFilesHint') }}
         </p>
         <ul v-else class="vfs-list">
           <li v-for="f in vfsFiles" :key="f">
@@ -286,14 +287,13 @@ onMounted(() => {
               color="neutral"
               variant="ghost"
               icon="i-lucide-download"
-              aria-label="Download"
+              :aria-label="t('console.download')"
               @click="downloadVfs(f)"
             />
           </li>
         </ul>
         <p class="hint mt-3">
-          Keys are matched by user-id, key-id or fingerprint. Use ↑/↓ for history,
-          Ctrl-L to clear.
+          {{ t('console.matchHint') }}
         </p>
       </aside>
     </div>

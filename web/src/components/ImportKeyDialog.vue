@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useVault } from '@/stores/vault'
 import { toastError, toastSuccess } from '@/lib/toast'
+
+const { t } = useI18n()
 
 const emit = defineEmits<{ close: [] }>()
 const vault = useVault()
@@ -21,7 +24,7 @@ async function onFile(e: Event) {
 
 function doImport() {
   const blocks = splitArmored(text.value)
-  if (blocks.length === 0) return toastError('No PGP key blocks found in the input')
+  if (blocks.length === 0) return toastError(t('import.errNoBlocks'))
   let ok = 0
   for (const block of blocks) {
     try {
@@ -32,7 +35,7 @@ function doImport() {
     }
   }
   if (ok > 0) {
-    toastSuccess(`Imported ${ok} key${ok === 1 ? '' : 's'}`)
+    toastSuccess(t('import.imported', { count: ok }))
     emit('close')
   }
 }
@@ -41,8 +44,8 @@ function doImport() {
 <template>
   <UModal
     :open="open"
-    title="Import keys"
-    description="Paste an armored public or secret key (or a bundle), or load a file."
+    :title="t('import.title')"
+    :description="t('import.description')"
     :ui="{ content: 'sm:max-w-2xl' }"
     @update:open="(v: boolean) => !v && emit('close')"
   >
@@ -55,7 +58,7 @@ function doImport() {
         class="mb-3"
         @click="fileInput?.click()"
       >
-        Load file…
+        {{ t('import.loadFile') }}
       </UButton>
       <UTextarea
         v-model="text"
@@ -67,8 +70,8 @@ function doImport() {
 
     <template #footer>
       <div class="modal-actions">
-        <UButton color="neutral" variant="ghost" @click="emit('close')">Cancel</UButton>
-        <UButton :disabled="!text.trim()" icon="i-lucide-download" @click="doImport">Import</UButton>
+        <UButton color="neutral" variant="ghost" @click="emit('close')">{{ t('import.cancel') }}</UButton>
+        <UButton :disabled="!text.trim()" icon="i-lucide-download" @click="doImport">{{ t('import.import') }}</UButton>
       </div>
     </template>
   </UModal>

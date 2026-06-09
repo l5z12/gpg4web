@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useVault } from '@/stores/vault'
 import GenerateKeyDialog from '@/components/GenerateKeyDialog.vue'
@@ -8,6 +9,7 @@ import { buildGnupgExport, downloadBlob } from '@/lib/gnupg'
 import { toastSuccess } from '@/lib/toast'
 import type { StoredKey } from '@/lib/types'
 
+const { t } = useI18n()
 const vault = useVault()
 const router = useRouter()
 const showGenerate = ref(false)
@@ -15,11 +17,11 @@ const showImport = ref(false)
 const query = ref('')
 const filter = ref<'all' | 'mine' | 'others'>('all')
 
-const filters = [
-  { key: 'all', label: 'All' },
-  { key: 'mine', label: 'My keys' },
-  { key: 'others', label: 'Others' },
-] as const
+const filters = computed(() => [
+  { key: 'all' as const, label: t('keys.filterAll') },
+  { key: 'mine' as const, label: t('keys.filterMine') },
+  { key: 'others' as const, label: t('keys.filterOthers') },
+])
 
 function isPq(k: StoredKey): boolean {
   return /MlKem|MlDsa|SlhDsa/i.test(
@@ -28,9 +30,9 @@ function isPq(k: StoredKey): boolean {
 }
 const fmtDate = (ts: number) => new Date(ts * 1000).toLocaleDateString()
 function expiry(k: StoredKey): string {
-  if (!k.info.expiresAt) return 'never'
+  if (!k.info.expiresAt) return t('keys.never')
   const d = new Date(k.info.expiresAt * 1000)
-  return (d.getTime() < Date.now() ? 'expired ' : '') + d.toLocaleDateString()
+  return (d.getTime() < Date.now() ? t('keys.expiredPrefix') : '') + d.toLocaleDateString()
 }
 
 const filtered = computed(() => {
@@ -50,18 +52,18 @@ const filtered = computed(() => {
 
 function exportGnupg() {
   downloadBlob(buildGnupgExport(vault.keysForExport()), 'gnupg-home-export.zip')
-  toastSuccess('Exported .gnupg home archive')
+  toastSuccess(t('keys.exportedGnupg'))
 }
 </script>
 
 <template>
   <div class="view">
     <div class="view-head">
-      <h1>Certificates</h1>
+      <h1>{{ t('keys.heading') }}</h1>
       <div class="toolbar">
-        <UButton icon="i-lucide-plus" @click="showGenerate = true">New key</UButton>
+        <UButton icon="i-lucide-plus" @click="showGenerate = true">{{ t('keys.newKey') }}</UButton>
         <UButton icon="i-lucide-download" color="neutral" variant="subtle" @click="showImport = true">
-          Import
+          {{ t('keys.import') }}
         </UButton>
         <UButton
           icon="i-lucide-package"
@@ -70,7 +72,7 @@ function exportGnupg() {
           :disabled="!vault.keys.length"
           @click="exportGnupg"
         >
-          Export .gnupg
+          {{ t('keys.exportGnupg') }}
         </UButton>
       </div>
     </div>
@@ -79,7 +81,7 @@ function exportGnupg() {
       <UInput
         v-model="query"
         icon="i-lucide-search"
-        placeholder="Search name, email or fingerprint…"
+        :placeholder="t('keys.searchPlaceholder')"
         class="search"
       />
       <UButtonGroup class="filter-seg">
@@ -96,7 +98,7 @@ function exportGnupg() {
     </div>
 
     <div v-if="!filtered.length" class="empty">
-      {{ vault.keys.length ? 'No certificates match your search.' : 'No certificates yet. Create or import a key.' }}
+      {{ vault.keys.length ? t('keys.emptySearch') : t('keys.emptyNone') }}
     </div>
 
     <template v-else>
@@ -104,11 +106,11 @@ function exportGnupg() {
       <table class="key-table cert-table">
         <thead>
           <tr>
-            <th>Name / User ID</th>
-            <th>Type</th>
-            <th>Key ID</th>
-            <th>Created</th>
-            <th>Expires</th>
+            <th>{{ t('keys.colName') }}</th>
+            <th>{{ t('keys.colType') }}</th>
+            <th>{{ t('keys.colKeyId') }}</th>
+            <th>{{ t('keys.colCreated') }}</th>
+            <th>{{ t('keys.colExpires') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -123,8 +125,8 @@ function exportGnupg() {
                 <UBadge :color="k.secretKeyEnc ? 'warning' : 'info'" variant="subtle" size="sm">
                   {{ k.secretKeyEnc ? 'sec' : 'pub' }}
                 </UBadge>
-                <span v-if="isPq(k)" title="Post-quantum key">🛡</span>
-                <span>{{ k.info.userIds[0] || '(no user id)' }}</span>
+                <span v-if="isPq(k)" :title="t('keys.postQuantumKey')">🛡</span>
+                <span>{{ k.info.userIds[0] || t('keys.noUserId') }}</span>
               </div>
             </td>
             <td class="muted">{{ k.info.algorithm }}</td>
@@ -150,8 +152,8 @@ function exportGnupg() {
             <UBadge :color="k.secretKeyEnc ? 'warning' : 'info'" variant="subtle" size="sm">
               {{ k.secretKeyEnc ? 'sec' : 'pub' }}
             </UBadge>
-            <span class="key-card-name">{{ k.info.userIds[0] || '(no user id)' }}</span>
-            <span v-if="isPq(k)" class="key-card-pq" title="Post-quantum key">🛡</span>
+            <span class="key-card-name">{{ k.info.userIds[0] || t('keys.noUserId') }}</span>
+            <span v-if="isPq(k)" class="key-card-pq" :title="t('keys.postQuantumKey')">🛡</span>
             <UIcon name="i-lucide-chevron-right" class="key-card-chevron" />
           </div>
           <div class="key-card-meta">
@@ -159,8 +161,8 @@ function exportGnupg() {
             <span class="mono">{{ k.keyId.slice(-16) }}</span>
           </div>
           <div class="key-card-meta muted">
-            <span>Created {{ fmtDate(k.info.createdAt) }}</span>
-            <span>Expires {{ expiry(k) }}</span>
+            <span>{{ t('keys.metaCreated') }} {{ fmtDate(k.info.createdAt) }}</span>
+            <span>{{ t('keys.metaExpires') }} {{ expiry(k) }}</span>
           </div>
         </div>
       </div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useVault } from '@/stores/vault'
 import { useAutoLock } from '@/composables/useAutoLock'
 import { toast } from '@/lib/toast'
@@ -9,6 +10,7 @@ import AppToaster from '@/components/AppToaster.vue'
 import WarningBanner from '@/components/WarningBanner.vue'
 
 const vault = useVault()
+const { t } = useI18n()
 const bootError = ref<string | null>(null)
 const sidebarOpen = ref(false)
 
@@ -18,7 +20,7 @@ const { reset: resetIdle } = useAutoLock({
   getMinutes: () => vault.settings.autoLockMinutes ?? 15,
   onLock: () => {
     vault.lock()
-    toast('Vault locked due to inactivity', 'info')
+    toast(t('app.lockedInactivity'), 'info')
   },
 })
 // Start the idle window fresh whenever the vault is unlocked.
@@ -56,13 +58,13 @@ onMounted(async () => {
 
       <div class="app-main">
         <div v-if="bootError" class="fatal">
-          <h1>Failed to start</h1>
+          <h1>{{ t('app.failedToStart') }}</h1>
           <pre>{{ bootError }}</pre>
         </div>
 
         <div v-else-if="!vault.ready" class="splash">
           <UIcon name="i-lucide-loader-circle" class="size-8 animate-spin" />
-          <p>Loading crypto engine…</p>
+          <p>{{ t('app.loadingEngine') }}</p>
         </div>
 
         <LockScreen v-else-if="!vault.unlocked" />
@@ -73,7 +75,7 @@ onMounted(async () => {
             icon="i-lucide-menu"
             color="neutral"
             variant="ghost"
-            aria-label="Menu"
+            :aria-label="t('app.menu')"
             @click="sidebarOpen = !sidebarOpen"
           />
           <span class="topbar-title">gpg4web</span>
@@ -82,7 +84,7 @@ onMounted(async () => {
             color="neutral"
             variant="soft"
             size="sm"
-            label="Lock"
+            :label="t('app.lock')"
             @click="vault.lock()"
           />
         </header>

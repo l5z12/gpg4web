@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useVault } from '@/stores/vault'
 import { toastError, toastSuccess } from '@/lib/toast'
 import logoUrl from '@/assets/mark.svg'
 
+const { t } = useI18n()
 const vault = useVault()
 const password = ref('')
 const confirm = ref('')
@@ -21,7 +23,13 @@ const strength = computed(() => {
   if (/[^A-Za-z0-9]/.test(p)) score++
   return Math.min(score, 4)
 })
-const strengthLabel = ['Very weak', 'Weak', 'Fair', 'Good', 'Strong']
+const strengthLabel = computed(() => [
+  t('lock.strengthVeryWeak'),
+  t('lock.strengthWeak'),
+  t('lock.strengthFair'),
+  t('lock.strengthGood'),
+  t('lock.strengthStrong'),
+])
 // Red → orange → amber → green as the score climbs.
 const strengthColors = ['#f87171', '#f87171', '#fb923c', '#fbbf24', '#34d399']
 const strengthColor = computed(() => strengthColors[strength.value])
@@ -32,22 +40,22 @@ async function submit() {
   try {
     if (isSetup.value) {
       if (password.value.length < 8) {
-        toastError('Master password must be at least 8 characters')
+        toastError(t('lock.passwordTooShort'))
         return
       }
       if (password.value !== confirm.value) {
-        toastError('Passwords do not match')
+        toastError(t('lock.passwordsDoNotMatch'))
         return
       }
       await vault.createVault(password.value)
-      toastSuccess('Vault created and unlocked')
+      toastSuccess(t('lock.vaultCreated'))
     } else {
       const ok = await vault.unlock(password.value)
       if (!ok) {
-        toastError(vault.error ?? 'Unlock failed')
+        toastError(vault.error ?? t('lock.unlockFailed'))
         return
       }
-      toastSuccess('Vault unlocked')
+      toastSuccess(t('lock.vaultUnlocked'))
     }
     password.value = ''
     confirm.value = ''
@@ -59,12 +67,12 @@ async function submit() {
 }
 
 function resetVault() {
-  if (!window.confirm('This permanently deletes your local vault and all stored keys. Continue?'))
+  if (!window.confirm(t('lock.resetConfirm')))
     return
   vault.destroyVault()
   password.value = ''
   confirm.value = ''
-  toastSuccess('Vault deleted. You can create a new one.')
+  toastSuccess(t('lock.vaultDeleted'))
 }
 </script>
 
@@ -73,21 +81,19 @@ function resetVault() {
     <UCard class="lock-card">
       <img :src="logoUrl" class="lock-logo" alt="gpg4web" width="76" height="76" />
       <h1>gpg4web</h1>
-      <p class="lock-sub">GnuPG in your browser, powered by Rust + WebAssembly</p>
+      <p class="lock-sub">{{ t('lock.tagline') }}</p>
 
-      <h2>{{ isSetup ? 'Create your vault' : 'Unlock your vault' }}</h2>
+      <h2>{{ isSetup ? t('lock.createVaultHeading') : t('lock.unlockVaultHeading') }}</h2>
       <p class="lock-note">
-        Your keyring is stored locally and sealed with a
-        <strong>post-quantum</strong> envelope (ML-KEM-768 + AES-256-GCM,
-        unlocked by your master password via Argon2id).
+        {{ t('lock.postQuantumNote') }}
       </p>
 
-      <label>Master password</label>
+      <label>{{ t('lock.masterPassword') }}</label>
       <UInput
         v-model="password"
         type="password"
         icon="i-lucide-lock"
-        placeholder="Enter master password"
+        :placeholder="t('lock.enterPassword')"
         size="lg"
         class="w-full"
         @keyup.enter="submit"
@@ -107,29 +113,28 @@ function resetVault() {
           {{ strengthLabel[strength] }}
         </span>
 
-        <label>Confirm password</label>
+        <label>{{ t('lock.confirmPassword') }}</label>
         <UInput
           v-model="confirm"
           type="password"
           icon="i-lucide-lock"
-          placeholder="Repeat master password"
+          :placeholder="t('lock.repeatPassword')"
           size="lg"
           class="w-full"
           @keyup.enter="submit"
         />
         <p class="warn">
-          ⚠ There is no recovery. If you forget this password your keys are
-          unrecoverable.
+          {{ t('lock.noRecoveryWarning') }}
         </p>
       </template>
 
       <UButton block size="lg" :loading="busy" class="lock-submit" @click="submit">
-        {{ isSetup ? 'Create vault' : 'Unlock' }}
+        {{ isSetup ? t('lock.createVault') : t('lock.unlock') }}
       </UButton>
 
       <div v-if="!isSetup" class="lock-reset">
         <UButton variant="link" color="neutral" size="sm" @click="resetVault">
-          Forgot password? Delete vault and start over
+          {{ t('lock.forgotPassword') }}
         </UButton>
       </div>
     </UCard>

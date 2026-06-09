@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { TabsItem } from '@nuxt/ui'
 import { useVault } from '@/stores/vault'
 import {
@@ -12,11 +13,12 @@ import { downloadBlob } from '@/lib/gnupg'
 import { toastError, toastSuccess } from '@/lib/toast'
 
 const vault = useVault()
+const { t } = useI18n()
 const tab = ref('signencrypt')
-const tabs: TabsItem[] = [
-  { label: 'Sign / Encrypt', value: 'signencrypt', slot: 'signencrypt', icon: 'i-lucide-lock' },
-  { label: 'Decrypt / Verify', value: 'decryptverify', slot: 'decryptverify', icon: 'i-lucide-lock-open' },
-]
+const tabs = computed<TabsItem[]>(() => [
+  { label: t('files.tabSignEncrypt'), value: 'signencrypt', slot: 'signencrypt', icon: 'i-lucide-lock' },
+  { label: t('files.tabDecryptVerify'), value: 'decryptverify', slot: 'decryptverify', icon: 'i-lucide-lock-open' },
+])
 
 // --- Sign / Encrypt ---
 const seFile = ref<File | null>(null)
@@ -36,7 +38,7 @@ const allKeyItems = computed(() =>
   vault.keys.map((k) => ({ label: `${k.info.userIds[0] || k.keyId} (${k.keyId.slice(-8)})`, value: k.fingerprint })),
 )
 const signItems = computed(() => [
-  { label: "Don't sign", value: 'none' },
+  { label: t('files.dontSign'), value: 'none' },
   ...vault.ownKeys.map((k) => ({ label: k.info.userIds[0] || k.keyId, value: k.fingerprint })),
 ])
 const myKeyItems = computed(() =>
@@ -51,12 +53,12 @@ async function bytes(f: File): Promise<Uint8Array> {
 }
 
 async function doSignEncrypt() {
-  if (!seFile.value) return toastError('Choose a file')
+  if (!seFile.value) return toastError(t('files.chooseFile'))
   const data = await bytes(seFile.value)
   const hasRecipients = seRecipients.value.length > 0
   const wantSign = seSign.value !== 'none'
   const signer = wantSign ? vault.getSecretKey(seSign.value) : null
-  if (wantSign && !signer) return toastError('Could not unlock the signing key')
+  if (wantSign && !signer) return toastError(t('files.couldNotUnlockSigningKey'))
 
   try {
     if (hasRecipients) {
@@ -66,14 +68,14 @@ async function doSignEncrypt() {
       const out = encryptFile(data, pubs, signer, sePass.value || null, seArmor.value)
       const ext = seArmor.value ? '.asc' : '.gpg'
       downloadBlob(new Blob([out as BlobPart]), seFile.value.name + ext)
-      toastSuccess(signer ? 'Signed and encrypted' : 'Encrypted')
+      toastSuccess(signer ? t('files.signedAndEncrypted') : t('files.encrypted'))
     } else if (signer) {
       // No recipients → detached signature (Kleopatra signs files detached).
       const sig = signFileDetached(data, signer, sePass.value)
       downloadBlob(new Blob([sig]), seFile.value.name + '.sig.asc')
-      toastSuccess('Signed (detached signature)')
+      toastSuccess(t('files.signedDetached'))
     } else {
-      toastError('Choose recipients to encrypt, and/or a key to sign with')
+      toastError(t('files.chooseRecipientsOrKey'))
     }
   } catch (e) {
     toastError(e instanceof Error ? e.message : String(e))
@@ -81,12 +83,12 @@ async function doSignEncrypt() {
 }
 
 async function doDecryptVerify() {
-  if (!dvFile.value) return toastError('Choose a file')
+  if (!dvFile.value) return toastError(t('files.chooseFile'))
   const data = await bytes(dvFile.value)
   try {
     if (dvSigFile.value) {
       // Verify the file against a detached signature.
-      if (!vault.keys.length) return toastError("Import the signer's public key to verify")
+      if (!vault.keys.length) return toastError(t('files.importSignerPublicKey'))
       const sigText = new TextDecoder().decode(await bytes(dvSigFile.value))
       let ok = false
       let label = 'unknown signer'
@@ -99,19 +101,19 @@ async function doDecryptVerify() {
       }
       dvResult.value = {
         ok,
-        title: ok ? 'Valid signature' : 'Invalid or untrusted signature',
-        detail: ok ? `Signed by ${label}` : 'No key in your ring matches this signature.',
+        title: ok ? t('files.validSignature') : t('files.invalidSignature'),
+        detail: ok ? t('files.signedBy', { label }) : t('files.noKeyMatches'),
       }
-      toastSuccess(ok ? 'Valid signature' : 'Signature could not be verified')
+      toastSuccess(ok ? t('files.validSignature') : t('files.signatureCouldNotBeVerified'))
     } else {
       // Decrypt the file.
       const sk = dvKey.value ? vault.getSecretKey(dvKey.value) : null
-      if (!sk) return toastError('Select one of your secret keys')
+      if (!sk) return toastError(t('files.selectOneSecretKey'))
       const out = decryptFile(data, sk, dvPass.value)
       const name = dvFile.value.name.replace(/\.(gpg|pgp|asc)$/i, '') || 'decrypted'
       downloadBlob(new Blob([out as BlobPart]), name)
-      dvResult.value = { ok: true, title: 'Decrypted', detail: `Saved as ${name}` }
-      toastSuccess('Decrypted')
+      dvResult.value = { ok: true, title: t('files.decrypted'), detail: t('files.savedAs', { name }) }
+      toastSuccess(t('files.decrypted'))
     }
   } catch (e) {
     toastError(e instanceof Error ? e.message : String(e))
@@ -135,13 +137,13 @@ function drop(target: 'se' | 'dv', e: DragEvent) {
 
 <template>
   <div class="view">
-    <div class="view-head"><h1>Files</h1></div>
+    <div class="view-head"><h1>{{ t('files.heading') }}</h1></div>
 
     <UTabs v-model="tab" :items="tabs" class="w-full">
       <template #signencrypt>
         <div class="pad-grid">
           <div class="pad-col">
-            <label>File</label>
+            <label>{{ t('files.file') }}</label>
             <label
               class="dropzone"
               @dragover.prevent
@@ -150,26 +152,23 @@ function drop(target: 'se' | 'dv', e: DragEvent) {
               <input type="file" class="hidden" @change="pick('se', $event)" />
               <UIcon name="i-lucide-upload" class="dropzone-icon" />
               <span v-if="seFile">{{ seFile.name }} · {{ fmtSize(seFile.size) }}</span>
-              <span v-else class="muted">Drop a file here or click to choose</span>
+              <span v-else class="muted">{{ t('files.dropFile') }}</span>
             </label>
 
-            <label>Encrypt for (leave empty to sign only)</label>
-            <USelect v-model="seRecipients" multiple :items="allKeyItems" placeholder="No recipients — sign only" class="w-full" />
+            <label>{{ t('files.encryptFor') }}</label>
+            <USelect v-model="seRecipients" multiple :items="allKeyItems" :placeholder="t('files.noRecipients')" class="w-full" />
 
-            <label>Sign as</label>
+            <label>{{ t('files.signAs') }}</label>
             <USelect v-model="seSign" :items="signItems" class="w-full" />
-            <UInput v-if="seSign !== 'none'" v-model="sePass" type="password" placeholder="Signing key passphrase (if any)" class="w-full mt-2" />
+            <UInput v-if="seSign !== 'none'" v-model="sePass" type="password" :placeholder="t('files.signingPassphrase')" class="w-full mt-2" />
 
             <div class="armor-row mt-3">
               <USwitch v-model="seArmor" />
-              <span>ASCII armor (.asc instead of binary .gpg)</span>
+              <span>{{ t('files.asciiArmor') }}</span>
             </div>
 
-            <UButton block icon="i-lucide-lock" class="mt-4" @click="doSignEncrypt">Sign / Encrypt File</UButton>
-            <p class="hint">
-              With recipients the file is encrypted (<code>.gpg</code>/<code>.asc</code>). With no
-              recipients a detached signature (<code>.sig.asc</code>) is produced.
-            </p>
+            <UButton block icon="i-lucide-lock" class="mt-4" @click="doSignEncrypt">{{ t('files.signEncryptButton') }}</UButton>
+            <p class="hint">{{ t('files.hint') }}</p>
           </div>
           <div class="pad-col"></div>
         </div>
@@ -178,28 +177,28 @@ function drop(target: 'se' | 'dv', e: DragEvent) {
       <template #decryptverify>
         <div class="pad-grid">
           <div class="pad-col">
-            <label>File</label>
+            <label>{{ t('files.file') }}</label>
             <label class="dropzone" @dragover.prevent @drop.prevent="drop('dv', $event)">
               <input type="file" class="hidden" @change="pick('dv', $event)" />
               <UIcon name="i-lucide-file" class="dropzone-icon" />
               <span v-if="dvFile">{{ dvFile.name }} · {{ fmtSize(dvFile.size) }}</span>
-              <span v-else class="muted">Drop an encrypted or signed file here</span>
+              <span v-else class="muted">{{ t('files.dropEncryptedOrSigned') }}</span>
             </label>
 
-            <label>Detached signature (optional — to verify)</label>
+            <label>{{ t('files.detachedSignature') }}</label>
             <label class="dropzone dropzone-sm">
               <input type="file" accept=".sig,.asc,.gpg" class="hidden" @change="pick('dvsig', $event)" />
               <span v-if="dvSigFile">{{ dvSigFile.name }}</span>
-              <span v-else class="muted">Choose a .sig / .asc signature to verify against the file</span>
+              <span v-else class="muted">{{ t('files.dropSignature') }}</span>
             </label>
 
             <template v-if="!dvSigFile">
-              <label>Decrypt with</label>
-              <USelect v-model="dvKey" :items="myKeyItems" placeholder="Select your secret key" class="w-full" />
-              <UInput v-model="dvPass" type="password" placeholder="Key passphrase (if any)" class="w-full mt-2" />
+              <label>{{ t('files.decryptWith') }}</label>
+              <USelect v-model="dvKey" :items="myKeyItems" :placeholder="t('files.selectSecretKey')" class="w-full" />
+              <UInput v-model="dvPass" type="password" :placeholder="t('files.keyPassphrase')" class="w-full mt-2" />
             </template>
 
-            <UButton block icon="i-lucide-lock-open" class="mt-4" @click="doDecryptVerify">Decrypt / Verify File</UButton>
+            <UButton block icon="i-lucide-lock-open" class="mt-4" @click="doDecryptVerify">{{ t('files.decryptVerifyButton') }}</UButton>
           </div>
 
           <div class="pad-col">
@@ -210,7 +209,7 @@ function drop(target: 'se' | 'dv', e: DragEvent) {
               :title="dvResult.title"
               :description="dvResult.detail"
             />
-            <p v-else class="muted">Decrypt a file, or verify it against a detached signature.</p>
+            <p v-else class="muted">{{ t('files.emptyState') }}</p>
           </div>
         </div>
       </template>
