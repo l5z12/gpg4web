@@ -127,6 +127,33 @@ body {
 .uid { display: flex; align-items: center; gap: 8px; }
 .chips { display: inline-flex; gap: 6px; }
 
+/* ---------- Key cards (mobile) ---------- */
+.key-cards { display: none; flex-direction: column; gap: 10px; }
+.key-card {
+  background: var(--ui-bg-elevated);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.key-card:active { background: var(--ui-bg-muted); }
+.key-card:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 2px; }
+.key-card-head { display: flex; align-items: center; gap: 8px; }
+.key-card-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.key-card-pq { font-size: 1rem; }
+.key-card-chevron { color: var(--ui-text-dimmed); flex-shrink: 0; }
+.key-card-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--ui-text-toned, var(--ui-text-muted));
+}
+.key-card-meta .mono { font-size: 0.78rem; }
+
 /* ---------- Detail ---------- */
 .kv { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px dashed var(--ui-border-muted, var(--ui-border)); font-size: 0.88rem; }
 .kv:last-child { border-bottom: none; }
@@ -182,6 +209,22 @@ body {
   }
   .sidebar.open { transform: translateX(0); }
   .scrim { display: block; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 30; }
-  .content { padding: 18px 16px; }
-  .pad-grid { grid-template-columns: 1fr; }
+  .content { padding: 16px 14px; }
+  .pad-grid { grid-template-columns: 1fr; gap: 14px; }
+
+  /* Certificates: swap the certificate table for cards */
+  .cert-table { display: none; }
+  .key-cards { display: flex; }
+
+  /* Stack the page header and let action buttons fill the width */
+  .view-head { gap: 12px; }
+  .view-head h1 { font-size: 1.3rem; }
+  .toolbar { width: 100%; }
+  .toolbar > * { flex: 1 1 auto; justify-content: center; }
+
+  /* Filters stack: full-width search, full-width segmented control below */
+  .filters { flex-direction: column; align-items: stretch; }
+  .search { max-width: none; }
+  .filter-seg { width: 100%; }
+  .filter-seg button { flex: 1; }
 }

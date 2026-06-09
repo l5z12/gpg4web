@@ -82,7 +82,7 @@ function exportGnupg() {
         placeholder="Search name, email or fingerprint…"
         class="search"
       />
-      <UButtonGroup>
+      <UButtonGroup class="filter-seg">
         <UButton
           v-for="f in filters"
           :key="f.key"
@@ -99,43 +99,73 @@ function exportGnupg() {
       {{ vault.keys.length ? 'No certificates match your search.' : 'No certificates yet. Create or import a key.' }}
     </div>
 
-    <table v-else class="key-table">
-      <thead>
-        <tr>
-          <th>Name / User ID</th>
-          <th>Type</th>
-          <th>Key ID</th>
-          <th>Created</th>
-          <th>Expires</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
+    <template v-else>
+      <!-- Desktop / wide: table -->
+      <table class="key-table cert-table">
+        <thead>
+          <tr>
+            <th>Name / User ID</th>
+            <th>Type</th>
+            <th>Key ID</th>
+            <th>Created</th>
+            <th>Expires</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="k in filtered"
+            :key="k.fingerprint"
+            class="key-row"
+            @click="router.push(`/keys/${k.fingerprint}`)"
+          >
+            <td>
+              <div class="uid">
+                <UBadge :color="k.secretKey ? 'warning' : 'info'" variant="subtle" size="sm">
+                  {{ k.secretKey ? 'sec' : 'pub' }}
+                </UBadge>
+                <span v-if="isPq(k)" title="Post-quantum key">🛡</span>
+                <span>{{ k.info.userIds[0] || '(no user id)' }}</span>
+              </div>
+            </td>
+            <td class="muted">{{ k.info.algorithm }}</td>
+            <td class="mono small">{{ k.keyId.slice(-16) }}</td>
+            <td class="muted">{{ fmtDate(k.info.createdAt) }}</td>
+            <td class="muted">{{ expiry(k) }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Mobile / narrow: cards -->
+      <div class="key-cards">
+        <div
           v-for="k in filtered"
           :key="k.fingerprint"
-          class="key-row"
+          class="key-card"
+          role="button"
+          tabindex="0"
           @click="router.push(`/keys/${k.fingerprint}`)"
+          @keydown.enter="router.push(`/keys/${k.fingerprint}`)"
         >
-          <td>
-            <div class="uid">
-              <UBadge
-                :color="k.secretKey ? 'warning' : 'info'"
-                variant="subtle"
-                size="sm"
-              >
-                {{ k.secretKey ? 'sec' : 'pub' }}
-              </UBadge>
-              <span v-if="isPq(k)" title="Post-quantum key">🛡</span>
-              <span>{{ k.info.userIds[0] || '(no user id)' }}</span>
-            </div>
-          </td>
-          <td class="muted">{{ k.info.algorithm }}</td>
-          <td class="mono small">{{ k.keyId.slice(-16) }}</td>
-          <td class="muted">{{ fmtDate(k.info.createdAt) }}</td>
-          <td class="muted">{{ expiry(k) }}</td>
-        </tr>
-      </tbody>
-    </table>
+          <div class="key-card-head">
+            <UBadge :color="k.secretKey ? 'warning' : 'info'" variant="subtle" size="sm">
+              {{ k.secretKey ? 'sec' : 'pub' }}
+            </UBadge>
+            <span class="key-card-name">{{ k.info.userIds[0] || '(no user id)' }}</span>
+            <span v-if="isPq(k)" class="key-card-pq" title="Post-quantum key">🛡</span>
+            <UIcon name="i-lucide-chevron-right" class="key-card-chevron" />
+          </div>
+          <div class="key-card-meta">
+            <span>{{ k.info.algorithm }}</span>
+            <span class="mono">{{ k.keyId.slice(-16) }}</span>
+          </div>
+          <div class="key-card-meta muted">
+            <span>Created {{ fmtDate(k.info.createdAt) }}</span>
+            <span>Expires {{ expiry(k) }}</span>
+          </div>
+        </div>
+      </div>
+    </template>
+
 
     <GenerateKeyDialog v-if="showGenerate" @close="showGenerate = false" />
     <ImportKeyDialog v-if="showImport" @close="showImport = false" />
