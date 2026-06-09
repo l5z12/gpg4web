@@ -80,4 +80,19 @@ try {
 }
 assert(threw, 'vault decrypt with wrong pw throws')
 
+console.log('\n[10] session-key path (no password retained)')
+const sessionKey = g.vault_unseal(id, 'master-pass')
+assert(typeof sessionKey === 'string' && sessionKey.length > 100, 'unseal returns session key')
+assert(
+  JSON.parse(g.vault_decrypt_with_key(sessionKey, env)).keys[0].fingerprint === k.fingerprint,
+  'decrypt_with_key round-trips without password',
+)
+let unsealThrew = false
+try {
+  g.vault_unseal(id, 'wrong')
+} catch {
+  unsealThrew = true
+}
+assert(unsealThrew, 'unseal with wrong password throws')
+
 console.log('\n=== ALL TESTS PASSED ===')

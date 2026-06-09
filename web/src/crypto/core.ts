@@ -162,6 +162,10 @@ export const vaultCreate = (password: string): VaultIdentity =>
 export const vaultVerifyPassword = (identity: VaultIdentity, password: string): boolean =>
   wasm.vault_verify_password(identity, password)
 
+/** Unseal the per-session decapsulation key (base64) from the master password. */
+export const vaultUnseal = (identity: VaultIdentity, password: string): string =>
+  wasm.vault_unseal(identity, password)
+
 export const vaultEncrypt = (identity: VaultIdentity, plaintext: string): VaultEnvelope =>
   wasm.vault_encrypt(identity, plaintext) as VaultEnvelope
 
@@ -170,3 +174,7 @@ export const vaultDecrypt = (
   password: string,
   envelope: VaultEnvelope,
 ): string => wasm.vault_decrypt(identity, password, envelope)
+
+/** Decrypt an envelope with a session key from {@link vaultUnseal} (no password). */
+export const vaultDecryptWithKey = (sessionKey: string, envelope: VaultEnvelope): string =>
+  wasm.vault_decrypt_with_key(sessionKey, envelope)

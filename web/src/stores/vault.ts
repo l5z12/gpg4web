@@ -4,9 +4,9 @@ import {
   inspectKey,
   extractPublicKey,
   vaultCreate,
-  vaultDecrypt,
+  vaultDecryptWithKey,
   vaultEncrypt,
-  vaultVerifyPassword,
+  vaultUnseal,
   type VaultEnvelope,
   type VaultIdentity,
 } from '@/crypto/core'
@@ -42,9 +42,13 @@ interface State {
   hasVault: boolean
   identity: VaultIdentity | null
   data: VaultData | null
-  /** Master password, kept in memory only while unlocked so individual secret
-   *  keys can be decrypted on demand. Wiped on lock. */
-  masterPassword: string | null
+  /**
+   * The unsealed ML-KEM decapsulation key (base64), derived from the master
+   * password at unlock. Kept in memory while unlocked so individual secret
+   * keys can be decrypted on demand — the plaintext password is never
+   * retained. Wiped on lock.
+   */
+  sessionKey: string | null
   error: string | null
 }
 
@@ -60,7 +64,7 @@ export const useVault = defineStore('vault', {
     hasVault: false,
     identity: null,
     data: null,
-    masterPassword: null,
+    sessionKey: null,
     error: null,
   }),
 
@@ -89,7 +93,8 @@ export const useVault = defineStore('vault', {
       await initCrypto()
       const identity = vaultCreate(password)
       this.identity = identity
-      this.masterPassword = password
+      // Derive and keep the session key; the password is not retained.
+      this.sessionKey = vaultUnseal(identity, password)
       this.data = emptyData()
       localStorage.setItem(ID_KEY, JSON.stringify(identity))
       this.persist()
@@ -106,19 +111,23 @@ export const useVault = defineStore('vault', {
         this.error = 'No vault found'
         return false
       }
-      if (!vaultVerifyPassword(identity, password)) {
+      // Unsealing fails (AEAD tag) on a wrong password, which also verifies it.
+      let sessionKey: string
+      try {
+        sessionKey = vaultUnseal(identity, password)
+      } catch {
         this.error = 'Incorrect master password'
         return false
       }
       const envelope = loadEnvelope()
       this.identity = identity
-      this.masterPassword = password
+      this.sessionKey = sessionKey
       if (!envelope) {
         // Identity exists but no payload yet — treat as empty.
         this.data = emptyData()
         this.persist()
       } else {
-        const json = vaultDecrypt(identity, password, envelope)
+        const json = vaultDecryptWithKey(sessionKey, envelope)
         this.data = JSON.parse(json) as VaultData
         if (!this.data.settings) this.data.settings = { ...DEFAULT_SETTINGS }
         this.migrateLegacySecrets()
@@ -128,11 +137,11 @@ export const useVault = defineStore('vault', {
       return true
     },
 
-    /** Lock the vault, wiping decrypted data and the master password. */
+    /** Lock the vault, wiping decrypted data and the session key. */
     lock() {
       this.unlocked = false
       this.data = null
-      this.masterPassword = null
+      this.sessionKey = null
     },
 
     /** Encrypt the current data and persist it to localStorage. */
@@ -155,9 +164,9 @@ export const useVault = defineStore('vault', {
      */
     getSecretKey(fingerprint: string): string | null {
       const key = this.keyByFingerprint(fingerprint)
-      if (!key?.secretKeyEnc || !this.identity || !this.masterPassword) return null
+      if (!key?.secretKeyEnc || !this.sessionKey) return null
       try {
-        return vaultDecrypt(this.identity, this.masterPassword, key.secretKeyEnc)
+        return vaultDecryptWithKey(this.sessionKey, key.secretKeyEnc)
       } catch {
         return null
       }
@@ -266,7 +275,7 @@ export const useVault = defineStore('vault', {
       localStorage.removeItem(ENV_KEY)
       this.identity = null
       this.data = null
-      this.masterPassword = null
+      this.sessionKey = null
       this.unlocked = false
       this.hasVault = false
     },

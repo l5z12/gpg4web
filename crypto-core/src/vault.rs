@@ -197,25 +197,25 @@ pub fn encrypt(identity: &VaultIdentity, plaintext: &[u8]) -> Result<VaultEnvelo
     })
 }
 
-/// Decrypt a payload using the master password to unseal the KEM secret key.
-pub fn decrypt(
-    identity: &VaultIdentity,
-    password: &str,
-    envelope: &VaultEnvelope,
-) -> Result<Vec<u8>> {
+/// Unseal the ML-KEM decapsulation (secret) key from the identity using the
+/// master password. The returned bytes are the session key that can decrypt
+/// vault envelopes without the password — so the password itself never has to
+/// be retained in memory after unlock.
+fn unseal_dk(identity: &VaultIdentity, password: &str) -> Result<Vec<u8>> {
     let salt = b64d(&identity.salt)?;
-    let kek = derive_kek(password, &salt)?;
-
+    let mut kek = derive_kek(password, &salt)?;
     let sec_nonce = b64d(&identity.kem_secret_nonce)?;
     let sec_sealed = b64d(&identity.kem_secret_sealed)?;
-    let mut dk_bytes = aes_decrypt(&kek, &sec_nonce, &sec_sealed)?;
+    let dk_bytes = aes_decrypt(&kek, &sec_nonce, &sec_sealed)?;
+    kek.zeroize();
+    Ok(dk_bytes)
+}
 
-    let encoded = ml_kem::Encoded::<<Kem as KemCore>::DecapsulationKey>::try_from(
-        dk_bytes.as_slice(),
-    )
-    .map_err(|_| CoreError::Vault("malformed KEM secret key".into()))?;
+/// Decapsulate + decrypt a payload given the raw (unsealed) decapsulation key.
+fn decrypt_with_dk_bytes(dk_bytes: &[u8], envelope: &VaultEnvelope) -> Result<Vec<u8>> {
+    let encoded = ml_kem::Encoded::<<Kem as KemCore>::DecapsulationKey>::try_from(dk_bytes)
+        .map_err(|_| CoreError::Vault("malformed KEM secret key".into()))?;
     let dk = <Kem as KemCore>::DecapsulationKey::from_bytes(&encoded);
-    dk_bytes.zeroize();
 
     let ct_bytes = b64d(&envelope.kem_ciphertext)?;
     let ct = ml_kem::Ciphertext::<Kem>::try_from(ct_bytes.as_slice())
@@ -224,11 +224,40 @@ pub fn decrypt(
         .decapsulate(&ct)
         .map_err(|_| CoreError::Vault("KEM decapsulation failed".into()))?;
 
-    let key = kdf(shared.as_ref());
+    let mut key = kdf(shared.as_ref());
     let nonce = b64d(&envelope.nonce)?;
     let data = b64d(&envelope.data)?;
     let out = aes_decrypt(&key, &nonce, &data)?;
-    let mut key_mut = key;
-    key_mut.zeroize();
+    key.zeroize();
     Ok(out)
+}
+
+/// Unseal the session (decapsulation) key, returned base64-encoded. Decrypting
+/// the sealed key with the wrong password fails the AEAD tag, so this also
+/// serves as password verification.
+pub fn unseal(identity: &VaultIdentity, password: &str) -> Result<String> {
+    let mut dk = unseal_dk(identity, password)?;
+    let encoded = b64e(&dk);
+    dk.zeroize();
+    Ok(encoded)
+}
+
+/// Decrypt a payload using a previously-unsealed session key (base64).
+pub fn decrypt_with_key(session_key_b64: &str, envelope: &VaultEnvelope) -> Result<Vec<u8>> {
+    let mut dk = b64d(session_key_b64)?;
+    let out = decrypt_with_dk_bytes(&dk, envelope);
+    dk.zeroize();
+    out
+}
+
+/// Decrypt a payload using the master password to unseal the KEM secret key.
+pub fn decrypt(
+    identity: &VaultIdentity,
+    password: &str,
+    envelope: &VaultEnvelope,
+) -> Result<Vec<u8>> {
+    let mut dk_bytes = unseal_dk(identity, password)?;
+    let out = decrypt_with_dk_bytes(&dk_bytes, envelope);
+    dk_bytes.zeroize();
+    out
 }

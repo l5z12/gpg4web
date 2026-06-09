@@ -155,3 +155,23 @@ pub fn vault_decrypt(
     let bytes = vault::decrypt(&id, &password, &env)?;
     String::from_utf8(bytes).map_err(|e| CoreError::Vault(format!("utf8: {e}")).into())
 }
+
+/// Unseal the per-session decapsulation key (base64) from the master password.
+/// The caller keeps this in memory instead of the password, so subsequent
+/// envelope decryption never needs the plaintext password again.
+#[wasm_bindgen]
+pub fn vault_unseal(identity: JsValue, password: String) -> Result<String, JsValue> {
+    let id: vault::VaultIdentity = from_value(identity).map_err(CoreError::from)?;
+    Ok(vault::unseal(&id, &password)?)
+}
+
+/// Decrypt a payload with a previously-unsealed session key (from vault_unseal).
+#[wasm_bindgen]
+pub fn vault_decrypt_with_key(
+    session_key: String,
+    envelope: JsValue,
+) -> Result<String, JsValue> {
+    let env: vault::VaultEnvelope = from_value(envelope).map_err(CoreError::from)?;
+    let bytes = vault::decrypt_with_key(&session_key, &env)?;
+    String::from_utf8(bytes).map_err(|e| CoreError::Vault(format!("utf8: {e}")).into())
+}

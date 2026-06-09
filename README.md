@@ -122,10 +122,14 @@ e.g. `VITE_OFFICIAL_DOMAINS=example.com,localhost`.
 - All cryptography is performed in Rust/WASM; the JS layer only marshals data.
 - There is **no password recovery** for the vault. Forgetting the master
   password makes stored keys unrecoverable (by design).
+- **The master password is never retained.** At unlock it is used once to
+  unseal the vault's ML-KEM decapsulation key; only that derived session key is
+  kept in memory (and wiped on lock/auto-lock). The plaintext password does not
+  persist past unlock.
 - **Secret keys are decrypted on demand.** Even while the vault is unlocked,
   each secret key stays individually post-quantum-encrypted in memory and is
-  only decrypted for the specific operation that needs it — so opening one
-  secret key never exposes the others.
+  only decrypted (with the session key) for the specific operation that needs
+  it — so opening one secret key never exposes the others.
 - A non-official origin shows an **unofficial-deployment** banner (see above).
 - The `.gnupg` export and "vault backup" are the supported backup paths.
 
