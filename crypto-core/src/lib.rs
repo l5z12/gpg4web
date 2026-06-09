@@ -122,6 +122,56 @@ pub fn verify_cleartext(
 }
 
 // ---------------------------------------------------------------------------
+// File (binary) operations
+// ---------------------------------------------------------------------------
+
+/// Encrypt arbitrary bytes (a file) to one or more recipients, optionally
+/// signing. Returns binary OpenPGP, or ASCII-armored bytes when `armor`.
+#[wasm_bindgen]
+pub fn encrypt_file(
+    data: &[u8],
+    recipients: JsValue,
+    sign_secret: Option<String>,
+    sign_passphrase: Option<String>,
+    armor: bool,
+) -> Result<Vec<u8>, JsValue> {
+    let recipient_keys: Vec<String> = from_value(recipients).map_err(CoreError::from)?;
+    let pass = sign_passphrase.unwrap_or_default();
+    let sign_with = sign_secret.as_deref().map(|s| (s, pass.as_str()));
+    Ok(pgp::encrypt_bytes(data, &recipient_keys, sign_with, armor)?)
+}
+
+/// Decrypt a file (binary or armored OpenPGP) to its original bytes.
+#[wasm_bindgen]
+pub fn decrypt_file(
+    data: &[u8],
+    secret_armored: String,
+    passphrase: String,
+) -> Result<Vec<u8>, JsValue> {
+    Ok(pgp::decrypt_bytes(data, &secret_armored, &passphrase)?)
+}
+
+/// Produce a detached ASCII-armored signature over a file's bytes.
+#[wasm_bindgen]
+pub fn sign_file_detached(
+    data: &[u8],
+    secret_armored: String,
+    passphrase: String,
+) -> Result<String, JsValue> {
+    Ok(pgp::sign_detached(data, &secret_armored, &passphrase)?)
+}
+
+/// Verify a detached signature against a file's bytes.
+#[wasm_bindgen]
+pub fn verify_file_detached(
+    data: &[u8],
+    signature_armored: String,
+    public_armored: String,
+) -> Result<bool, JsValue> {
+    Ok(pgp::verify_detached(data, &signature_armored, &public_armored)?)
+}
+
+// ---------------------------------------------------------------------------
 // Post-quantum vault bindings
 // ---------------------------------------------------------------------------
 

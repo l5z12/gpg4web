@@ -21,6 +21,7 @@ import { coreVersion } from '@/crypto/core'
         <li>Generate key pairs: Curve25519, Ed25519, RSA, NIST curves</li>
         <li>🛡 Post-quantum OpenPGP keys (IETF draft): ML-DSA, SLH-DSA, ML-KEM</li>
         <li>Encrypt &amp; decrypt messages to one or many recipients</li>
+        <li>Sign / encrypt / decrypt / verify <strong>files</strong> (binary or armored)</li>
         <li>Inline, detached, and cleartext signatures + verification</li>
         <li>Import / export armored keys, and a portable <code>.gnupg</code> home archive</li>
         <li>Works on desktop and mobile</li>

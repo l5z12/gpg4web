@@ -377,12 +377,15 @@ fn key_info_from_secret(key: &SignedSecretKey) -> KeyInfo {
 
 /// Encrypt `plaintext` to one or more recipients, optionally signing with a
 /// secret key. Output is ASCII-armored when `armor` is true.
-pub fn encrypt(
+/// Encrypt to one or more recipients, returning the raw message bytes
+/// (ASCII-armored UTF-8 when `armor`, otherwise binary OpenPGP). Used directly
+/// for file encryption.
+pub fn encrypt_bytes(
     plaintext: &[u8],
     recipient_keys: &[String],
     sign_with: Option<(&str, &str)>, // (armored secret, passphrase)
     armor: bool,
-) -> Result<String> {
+) -> Result<Vec<u8>> {
     if recipient_keys.is_empty() {
         return Err(CoreError::Pgp("no recipients provided".into()));
     }
@@ -431,13 +434,27 @@ pub fn encrypt(
     }
 
     if armor {
-        builder
+        let s = builder
             .to_armored_string(rng(), armor_opts())
-            .map_err(|e| CoreError::Pgp(format!("armor message: {e}")))
+            .map_err(|e| CoreError::Pgp(format!("armor message: {e}")))?;
+        Ok(s.into_bytes())
     } else {
-        let bytes = builder
+        builder
             .to_vec(rng())
-            .map_err(|e| CoreError::Pgp(format!("serialize message: {e}")))?;
+            .map_err(|e| CoreError::Pgp(format!("serialize message: {e}")))
+    }
+}
+
+pub fn encrypt(
+    plaintext: &[u8],
+    recipient_keys: &[String],
+    sign_with: Option<(&str, &str)>, // (armored secret, passphrase)
+    armor: bool,
+) -> Result<String> {
+    let bytes = encrypt_bytes(plaintext, recipient_keys, sign_with, armor)?;
+    if armor {
+        String::from_utf8(bytes).map_err(|e| CoreError::Pgp(format!("utf8: {e}")))
+    } else {
         Ok(base64::Engine::encode(
             &base64::engine::general_purpose::STANDARD,
             bytes,
@@ -510,6 +527,46 @@ pub fn decrypt(
         signatures,
         filename,
     })
+}
+
+/// Decrypt (and decompress) a message, returning the literal data bytes.
+fn read_message_data(
+    mut message: Message<'_>,
+    pw: &Password,
+    secret: &SignedSecretKey,
+) -> Result<Vec<u8>> {
+    if message.is_encrypted() {
+        message = message
+            .decrypt(pw, secret)
+            .map_err(|e| CoreError::Pgp(format!("decrypt failed: {e}")))?;
+    }
+    while message.is_compressed() {
+        message = message
+            .decompress()
+            .map_err(|e| CoreError::Pgp(format!("decompress: {e}")))?;
+    }
+    message
+        .as_data_vec()
+        .map_err(|e| CoreError::Pgp(format!("read data: {e}")))
+}
+
+/// Decrypt a binary or ASCII-armored OpenPGP message to raw bytes. Used for
+/// file decryption (auto-detects armor).
+pub fn decrypt_bytes(ciphertext: &[u8], secret_armored: &str, passphrase: &str) -> Result<Vec<u8>> {
+    let secret = parse_secret(secret_armored)?;
+    let pw = Password::from(passphrase.to_string());
+
+    if ciphertext.starts_with(b"-----BEGIN") {
+        let s = std::str::from_utf8(ciphertext)
+            .map_err(|e| CoreError::Pgp(format!("utf8: {e}")))?;
+        let (message, _) =
+            Message::from_string(s).map_err(|e| CoreError::Pgp(format!("parse message: {e}")))?;
+        read_message_data(message, &pw, &secret)
+    } else {
+        let message = Message::from_bytes(Cursor::new(ciphertext.to_vec()))
+            .map_err(|e| CoreError::Pgp(format!("parse message: {e}")))?;
+        read_message_data(message, &pw, &secret)
+    }
 }
 
 // ---------------------------------------------------------------------------

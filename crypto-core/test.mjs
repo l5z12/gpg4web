@@ -95,4 +95,15 @@ try {
 }
 assert(unsealThrew, 'unseal with wrong password throws')
 
+console.log('\n[11] binary file operations')
+const fileBytes = new Uint8Array([0, 1, 2, 255, 254, 0, 42, 13, 10, ...new TextEncoder().encode('x\x00y')])
+const encFile = g.encrypt_file(fileBytes, [k.publicKey], k.secretKey, 'pw123', false)
+assert(encFile instanceof Uint8Array && encFile[0] !== 0x2d, 'encrypt_file returns binary')
+const decFile = g.decrypt_file(encFile, k.secretKey, 'pw123')
+assert(decFile.length === fileBytes.length && decFile.every((x, i) => x === fileBytes[i]), 'file round-trips byte-exact')
+const fsig = g.sign_file_detached(fileBytes, k.secretKey, 'pw123')
+assert(g.verify_file_detached(fileBytes, fsig, k.publicKey) === true, 'detached file signature verifies')
+const tampered = new Uint8Array(fileBytes); tampered[0] = 9
+assert(g.verify_file_detached(tampered, fsig, k.publicKey) === false, 'tampered file fails')
+
 console.log('\n=== ALL TESTS PASSED ===')

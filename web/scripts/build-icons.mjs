@@ -23,10 +23,10 @@ const nuxtUiDefaults = [
 
 // Icons referenced directly in gpg4web's templates.
 const appIcons = [
-  'badge-check', 'circle-check', 'circle-x', 'copy', 'download',
+  'badge-check', 'circle-check', 'circle-x', 'copy', 'download', 'file-lock',
   'hard-drive-download', 'info', 'key-round', 'loader-circle', 'lock',
-  'lock-open', 'menu', 'notebook-pen', 'package', 'plus', 'search', 'settings',
-  'signature', 'star', 'star-off', 'trash-2', 'upload',
+  'lock-open', 'menu', 'notebook-pen', 'package', 'pen-line', 'plus', 'search',
+  'settings', 'signature', 'star', 'star-off', 'trash-2', 'upload',
 ]
 
 const names = [...new Set([...nuxtUiDefaults, ...appIcons])].sort()

@@ -5,6 +5,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/keys', name: 'keys', component: () => import('@/views/KeysView.vue') },
   { path: '/keys/:fingerprint', name: 'key', component: () => import('@/views/KeyDetailView.vue'), props: true },
   { path: '/notepad', name: 'notepad', component: () => import('@/views/NotepadView.vue') },
+  { path: '/files', name: 'files', component: () => import('@/views/FilesView.vue') },
   { path: '/sign', name: 'sign', component: () => import('@/views/SignView.vue') },
   { path: '/settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
   { path: '/about', name: 'about', component: () => import('@/views/AboutView.vue') },

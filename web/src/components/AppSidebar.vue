@@ -8,6 +8,7 @@ const emit = defineEmits<{ navigate: [] }>()
 const items: NavigationMenuItem[] = [
   { label: 'Certificates', icon: 'i-lucide-key-round', to: '/keys' },
   { label: 'Notepad', icon: 'i-lucide-notebook-pen', to: '/notepad' },
+  { label: 'Files', icon: 'i-lucide-file-lock', to: '/files' },
   { label: 'Sign / Verify', icon: 'i-lucide-signature', to: '/sign' },
   { label: 'Settings', icon: 'i-lucide-settings', to: '/settings' },
   { label: 'About', icon: 'i-lucide-info', to: '/about' },

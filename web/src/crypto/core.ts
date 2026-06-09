@@ -153,6 +153,37 @@ export const verifyCleartext = (armored: string, publicArmored: string): Clearte
   wasm.verify_cleartext(armored, publicArmored) as CleartextResult
 
 // ---------------------------------------------------------------------------
+// File (binary) operations
+// ---------------------------------------------------------------------------
+
+export const encryptFile = (
+  data: Uint8Array,
+  recipients: string[],
+  signSecret?: string | null,
+  signPassphrase?: string | null,
+  armor = false,
+): Uint8Array =>
+  wasm.encrypt_file(data, recipients, signSecret ?? null, signPassphrase ?? null, armor)
+
+export const decryptFile = (
+  data: Uint8Array,
+  secretArmored: string,
+  passphrase: string,
+): Uint8Array => wasm.decrypt_file(data, secretArmored, passphrase)
+
+export const signFileDetached = (
+  data: Uint8Array,
+  secretArmored: string,
+  passphrase: string,
+): string => wasm.sign_file_detached(data, secretArmored, passphrase)
+
+export const verifyFileDetached = (
+  data: Uint8Array,
+  signatureArmored: string,
+  publicArmored: string,
+): boolean => wasm.verify_file_detached(data, signatureArmored, publicArmored)
+
+// ---------------------------------------------------------------------------
 // Post-quantum vault
 // ---------------------------------------------------------------------------
 
