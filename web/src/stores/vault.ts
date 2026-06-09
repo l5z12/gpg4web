@@ -25,6 +25,16 @@ function loadEnvelope(): VaultEnvelope | null {
   return raw ? (JSON.parse(raw) as VaultEnvelope) : null
 }
 
+/** A key flattened for export, with its secret material decrypted on demand. */
+export interface ExportKey {
+  fingerprint: string
+  keyId: string
+  publicKey: string
+  secretKey?: string
+  info: StoredKey['info']
+  trusted?: boolean
+}
+
 interface State {
   initialized: boolean
   ready: boolean
@@ -32,6 +42,9 @@ interface State {
   hasVault: boolean
   identity: VaultIdentity | null
   data: VaultData | null
+  /** Master password, kept in memory only while unlocked so individual secret
+   *  keys can be decrypted on demand. Wiped on lock. */
+  masterPassword: string | null
   error: string | null
 }
 
@@ -47,14 +60,15 @@ export const useVault = defineStore('vault', {
     hasVault: false,
     identity: null,
     data: null,
+    masterPassword: null,
     error: null,
   }),
 
   getters: {
     keys: (s): StoredKey[] => s.data?.keys ?? [],
     settings: (s): AppSettings => s.data?.settings ?? { ...DEFAULT_SETTINGS },
-    ownKeys: (s): StoredKey[] => (s.data?.keys ?? []).filter((k) => k.secretKey),
-    publicOnlyKeys: (s): StoredKey[] => (s.data?.keys ?? []).filter((k) => !k.secretKey),
+    ownKeys: (s): StoredKey[] => (s.data?.keys ?? []).filter((k) => k.secretKeyEnc),
+    publicOnlyKeys: (s): StoredKey[] => (s.data?.keys ?? []).filter((k) => !k.secretKeyEnc),
     keyByFingerprint: (s) => (fpr: string) =>
       (s.data?.keys ?? []).find((k) => k.fingerprint === fpr) ?? null,
   },
@@ -75,6 +89,7 @@ export const useVault = defineStore('vault', {
       await initCrypto()
       const identity = vaultCreate(password)
       this.identity = identity
+      this.masterPassword = password
       this.data = emptyData()
       localStorage.setItem(ID_KEY, JSON.stringify(identity))
       this.persist()
@@ -96,26 +111,28 @@ export const useVault = defineStore('vault', {
         return false
       }
       const envelope = loadEnvelope()
+      this.identity = identity
+      this.masterPassword = password
       if (!envelope) {
         // Identity exists but no payload yet — treat as empty.
-        this.identity = identity
         this.data = emptyData()
         this.persist()
       } else {
         const json = vaultDecrypt(identity, password, envelope)
-        this.identity = identity
         this.data = JSON.parse(json) as VaultData
         if (!this.data.settings) this.data.settings = { ...DEFAULT_SETTINGS }
+        this.migrateLegacySecrets()
       }
       this.unlocked = true
       this.error = null
       return true
     },
 
-    /** Lock the vault, wiping decrypted data from memory. */
+    /** Lock the vault, wiping decrypted data and the master password. */
     lock() {
       this.unlocked = false
       this.data = null
+      this.masterPassword = null
     },
 
     /** Encrypt the current data and persist it to localStorage. */
@@ -125,16 +142,51 @@ export const useVault = defineStore('vault', {
       localStorage.setItem(ENV_KEY, JSON.stringify(envelope))
     },
 
+    /** Wrap an armored secret key into an individually-encrypted envelope. */
+    sealSecret(secretArmored: string): VaultEnvelope {
+      if (!this.identity) throw new Error('vault not initialized')
+      return vaultEncrypt(this.identity, secretArmored)
+    },
+
+    /**
+     * Decrypt and return the armored secret key for a single fingerprint,
+     * on demand. Other keys' secret material stays encrypted in memory.
+     * Returns null if the key has no secret part or the vault is locked.
+     */
+    getSecretKey(fingerprint: string): string | null {
+      const key = this.keyByFingerprint(fingerprint)
+      if (!key?.secretKeyEnc || !this.identity || !this.masterPassword) return null
+      try {
+        return vaultDecrypt(this.identity, this.masterPassword, key.secretKeyEnc)
+      } catch {
+        return null
+      }
+    },
+
+    /** One-time migration: older vaults stored secret keys in plaintext. */
+    migrateLegacySecrets() {
+      if (!this.data) return
+      let changed = false
+      for (const k of this.data.keys as Array<StoredKey & { secretKey?: string }>) {
+        if (k.secretKey && !k.secretKeyEnc) {
+          k.secretKeyEnc = this.sealSecret(k.secretKey)
+          delete k.secretKey
+          changed = true
+        }
+      }
+      if (changed) this.persist()
+    },
+
     // ---- Keyring mutations -------------------------------------------------
 
     /** Add or replace a key from armored text. Auto-detects pub vs secret. */
     importArmored(armored: string): StoredKey {
       const info = inspectKey(armored)
       let publicKey: string
-      let secretKey: string | undefined
+      let secretKeyEnc: VaultEnvelope | undefined
       if (info.isSecret) {
-        secretKey = armored
         publicKey = extractPublicKey(armored)
+        secretKeyEnc = this.sealSecret(armored)
       } else {
         publicKey = armored
       }
@@ -143,7 +195,7 @@ export const useVault = defineStore('vault', {
         fingerprint: info.fingerprint,
         keyId: info.keyId,
         publicKey,
-        secretKey: secretKey ?? existing?.secretKey,
+        secretKeyEnc: secretKeyEnc ?? existing?.secretKeyEnc,
         info,
         trusted: existing?.trusted ?? false,
         addedAt: existing?.addedAt ?? new Date().toISOString(),
@@ -162,7 +214,7 @@ export const useVault = defineStore('vault', {
         fingerprint: info.fingerprint,
         keyId: info.keyId,
         publicKey,
-        secretKey,
+        secretKeyEnc: this.sealSecret(secretKey),
         info,
         trusted: true,
         addedAt: new Date().toISOString(),
@@ -193,12 +245,28 @@ export const useVault = defineStore('vault', {
       this.persist()
     },
 
+    /**
+     * Flatten all keys for export, decrypting each secret key on demand. This
+     * is an explicit, user-initiated bulk operation (e.g. .gnupg export).
+     */
+    keysForExport(): ExportKey[] {
+      return this.keys.map((k) => ({
+        fingerprint: k.fingerprint,
+        keyId: k.keyId,
+        publicKey: k.publicKey,
+        secretKey: k.secretKeyEnc ? this.getSecretKey(k.fingerprint) ?? undefined : undefined,
+        info: k.info,
+        trusted: k.trusted,
+      }))
+    },
+
     /** Danger: wipe everything (vault identity + data). */
     destroyVault() {
       localStorage.removeItem(ID_KEY)
       localStorage.removeItem(ENV_KEY)
       this.identity = null
       this.data = null
+      this.masterPassword = null
       this.unlocked = false
       this.hasVault = false
     },

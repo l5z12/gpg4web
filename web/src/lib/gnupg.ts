@@ -9,13 +9,21 @@
 // installations.
 
 import { makeZip, type ZipEntry } from './zip'
-import type { StoredKey } from './types'
+
+/** A key flattened for export, with its secret material already decrypted. */
+export interface GnupgExportKey {
+  fingerprint: string
+  publicKey: string
+  secretKey?: string
+  trusted?: boolean
+  info: { userIds: string[] }
+}
 
 function sanitize(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 60) || 'key'
 }
 
-function ownerName(key: StoredKey): string {
+function ownerName(key: GnupgExportKey): string {
   const uid = key.info.userIds[0] ?? key.fingerprint
   return sanitize(uid)
 }
@@ -53,7 +61,7 @@ echo Done. Run "gpg --list-keys" to verify.
 endlocal
 `
 
-function readme(keys: StoredKey[]): string {
+function readme(keys: GnupgExportKey[]): string {
   const lines = keys.map(
     (k) =>
       `  - ${k.info.userIds[0] ?? '(no user id)'}  [${k.fingerprint}]  ${
@@ -92,7 +100,7 @@ Generated: ${new Date().toISOString()}
 }
 
 /** Assemble the export zip. Returns a Blob the caller can download. */
-export function buildGnupgExport(keys: StoredKey[]): Blob {
+export function buildGnupgExport(keys: GnupgExportKey[]): Blob {
   const entries: ZipEntry[] = []
 
   const pubring = keys.map((k) => k.publicKey.trim()).join('\n')

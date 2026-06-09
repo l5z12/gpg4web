@@ -45,7 +45,7 @@ const defaultSignKey = computed({
 })
 
 function exportGnupg() {
-  downloadBlob(buildGnupgExport(vault.keys), 'gnupg-home-export.zip')
+  downloadBlob(buildGnupgExport(vault.keysForExport()), 'gnupg-home-export.zip')
   toastSuccess('Exported .gnupg home archive')
 }
 function exportVault() {

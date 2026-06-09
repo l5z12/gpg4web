@@ -35,8 +35,8 @@ function expiry(k: StoredKey): string {
 
 const filtered = computed(() => {
   let list = vault.keys
-  if (filter.value === 'mine') list = list.filter((k) => k.secretKey)
-  if (filter.value === 'others') list = list.filter((k) => !k.secretKey)
+  if (filter.value === 'mine') list = list.filter((k) => k.secretKeyEnc)
+  if (filter.value === 'others') list = list.filter((k) => !k.secretKeyEnc)
   const q = query.value.trim().toLowerCase()
   if (q) {
     list = list.filter(
@@ -49,7 +49,7 @@ const filtered = computed(() => {
 })
 
 function exportGnupg() {
-  downloadBlob(buildGnupgExport(vault.keys), 'gnupg-home-export.zip')
+  downloadBlob(buildGnupgExport(vault.keysForExport()), 'gnupg-home-export.zip')
   toastSuccess('Exported .gnupg home archive')
 }
 </script>
@@ -120,8 +120,8 @@ function exportGnupg() {
           >
             <td>
               <div class="uid">
-                <UBadge :color="k.secretKey ? 'warning' : 'info'" variant="subtle" size="sm">
-                  {{ k.secretKey ? 'sec' : 'pub' }}
+                <UBadge :color="k.secretKeyEnc ? 'warning' : 'info'" variant="subtle" size="sm">
+                  {{ k.secretKeyEnc ? 'sec' : 'pub' }}
                 </UBadge>
                 <span v-if="isPq(k)" title="Post-quantum key">🛡</span>
                 <span>{{ k.info.userIds[0] || '(no user id)' }}</span>
@@ -147,8 +147,8 @@ function exportGnupg() {
           @keydown.enter="router.push(`/keys/${k.fingerprint}`)"
         >
           <div class="key-card-head">
-            <UBadge :color="k.secretKey ? 'warning' : 'info'" variant="subtle" size="sm">
-              {{ k.secretKey ? 'sec' : 'pub' }}
+            <UBadge :color="k.secretKeyEnc ? 'warning' : 'info'" variant="subtle" size="sm">
+              {{ k.secretKeyEnc ? 'sec' : 'pub' }}
             </UBadge>
             <span class="key-card-name">{{ k.info.userIds[0] || '(no user id)' }}</span>
             <span v-if="isPq(k)" class="key-card-pq" title="Post-quantum key">🛡</span>

@@ -22,8 +22,9 @@ function exportPub() {
   if (key.value) downloadText(key.value.publicKey, `${key.value.fingerprint.slice(-16)}.pub.asc`)
 }
 function exportSec() {
-  if (key.value?.secretKey)
-    downloadText(key.value.secretKey, `${key.value.fingerprint.slice(-16)}.sec.asc`)
+  if (!key.value?.secretKeyEnc) return
+  const secret = vault.getSecretKey(key.value.fingerprint)
+  if (secret) downloadText(secret, `${key.value.fingerprint.slice(-16)}.sec.asc`)
 }
 function remove() {
   if (!key.value) return
@@ -52,7 +53,7 @@ function toggleTrust() {
           Export public
         </UButton>
         <UButton
-          v-if="key.secretKey"
+          v-if="key.secretKeyEnc"
           color="neutral"
           variant="subtle"
           icon="i-lucide-download"
@@ -68,8 +69,8 @@ function toggleTrust() {
       <template #header><span>Identity</span></template>
       <div class="kv">
         <span>Type</span>
-        <UBadge :color="key.secretKey ? 'warning' : 'info'" variant="subtle">
-          {{ key.secretKey ? 'Key pair (public + secret)' : 'Public key' }}
+        <UBadge :color="key.secretKeyEnc ? 'warning' : 'info'" variant="subtle">
+          {{ key.secretKeyEnc ? 'Key pair (public + secret)' : 'Public key' }}
         </UBadge>
       </div>
       <div class="kv"><span>Algorithm</span><span>{{ key.info.algorithm }}</span></div>

@@ -1,14 +1,19 @@
-import type { KeyInfo } from '@/crypto/core'
+import type { KeyInfo, VaultEnvelope } from '@/crypto/core'
 
 /** A key as persisted in the encrypted vault. */
 export interface StoredKey {
   /** Stable id (the fingerprint). */
   fingerprint: string
   keyId: string
-  /** Armored public key (always present). */
+  /** Armored public key (always present, not sensitive). */
   publicKey: string
-  /** Armored secret key, present only for our own key pairs. */
-  secretKey?: string
+  /**
+   * The armored secret key, kept individually post-quantum-encrypted even
+   * while the vault is unlocked. It is only decrypted on demand for the
+   * specific key being used, so unused secret keys never sit in plaintext in
+   * memory. Present only for our own key pairs.
+   */
+  secretKeyEnc?: VaultEnvelope
   /** Cached metadata for display, recomputed on import. */
   info: KeyInfo
   /** User-assigned owner trust / favourite flag. */

@@ -37,7 +37,7 @@ const allKeyItems = computed(() =>
 )
 
 function doSign() {
-  const sk = signKey.value ? vault.keyByFingerprint(signKey.value)?.secretKey : undefined
+  const sk = signKey.value ? vault.getSecretKey(signKey.value) : null
   if (!sk) return toastError('Select your secret key')
   if (!text.value) return toastError('Nothing to sign')
   try {

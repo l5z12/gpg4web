@@ -6,6 +6,7 @@ import { toast } from '@/lib/toast'
 import LockScreen from '@/components/LockScreen.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import AppToaster from '@/components/AppToaster.vue'
+import WarningBanner from '@/components/WarningBanner.vue'
 
 const vault = useVault()
 const bootError = ref<string | null>(null)
@@ -51,19 +52,22 @@ onMounted(async () => {
     <AppToaster />
 
     <div class="app-root">
-      <div v-if="bootError" class="fatal">
-        <h1>Failed to start</h1>
-        <pre>{{ bootError }}</pre>
-      </div>
+      <WarningBanner />
 
-      <div v-else-if="!vault.ready" class="splash">
-        <UIcon name="i-lucide-loader-circle" class="size-8 animate-spin" />
-        <p>Loading crypto engine…</p>
-      </div>
+      <div class="app-main">
+        <div v-if="bootError" class="fatal">
+          <h1>Failed to start</h1>
+          <pre>{{ bootError }}</pre>
+        </div>
 
-      <LockScreen v-else-if="!vault.unlocked" />
+        <div v-else-if="!vault.ready" class="splash">
+          <UIcon name="i-lucide-loader-circle" class="size-8 animate-spin" />
+          <p>Loading crypto engine…</p>
+        </div>
 
-      <div v-else class="shell">
+        <LockScreen v-else-if="!vault.unlocked" />
+
+        <div v-else class="shell">
         <header class="topbar">
           <UButton
             icon="i-lucide-menu"
@@ -88,6 +92,7 @@ onMounted(async () => {
           <main class="content">
             <router-view />
           </main>
+        </div>
         </div>
       </div>
     </div>

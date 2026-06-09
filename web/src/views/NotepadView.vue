@@ -43,7 +43,7 @@ function doEncrypt() {
     const pubs = recipients.value
       .map((f) => vault.keyByFingerprint(f)?.publicKey)
       .filter((x): x is string => !!x)
-    const signer = signWith.value ? vault.keyByFingerprint(signWith.value)?.secretKey ?? null : null
+    const signer = signWith.value ? vault.getSecretKey(signWith.value) : null
     output.value = encrypt(input.value, pubs, signer, signPass.value || null, true)
     toastSuccess('Encrypted')
   } catch (e) {
@@ -53,7 +53,7 @@ function doEncrypt() {
 
 function doDecrypt() {
   if (!cipherIn.value) return toastError('Paste a PGP message first')
-  const sk = decryptKey.value ? vault.keyByFingerprint(decryptKey.value)?.secretKey : undefined
+  const sk = decryptKey.value ? vault.getSecretKey(decryptKey.value) : null
   if (!sk) return toastError('Select one of your secret keys')
   try {
     decryptOut.value = decrypt(cipherIn.value, sk, decryptPass.value, vault.keys.map((k) => k.publicKey))

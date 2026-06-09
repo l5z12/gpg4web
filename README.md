@@ -107,6 +107,14 @@ runs `bun install` and `bun run build` — which compiles the WASM core (via the
 `prebuild` hook) and bundles the static site into `web/dist`. Caching and a
 strict Content-Security-Policy are applied via `web/public/_headers`.
 
+### Official-domain warning
+
+When the app is served from any origin that is **not** `l5z12.dev` (or a
+subdomain), a banner warns that the deployment may be unofficial/modified.
+Override the allowed list at build time with the `VITE_OFFICIAL_DOMAINS`
+environment variable (comma-separated apex domains; subdomains are implied),
+e.g. `VITE_OFFICIAL_DOMAINS=example.com,localhost`.
+
 ---
 
 ## Security notes
@@ -114,6 +122,11 @@ strict Content-Security-Policy are applied via `web/public/_headers`.
 - All cryptography is performed in Rust/WASM; the JS layer only marshals data.
 - There is **no password recovery** for the vault. Forgetting the master
   password makes stored keys unrecoverable (by design).
+- **Secret keys are decrypted on demand.** Even while the vault is unlocked,
+  each secret key stays individually post-quantum-encrypted in memory and is
+  only decrypted for the specific operation that needs it — so opening one
+  secret key never exposes the others.
+- A non-official origin shows an **unofficial-deployment** banner (see above).
 - The `.gnupg` export and "vault backup" are the supported backup paths.
 
 ## License
