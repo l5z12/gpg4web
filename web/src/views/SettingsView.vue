@@ -14,7 +14,7 @@ const algoItems = [
   { label: 'Post-quantum (ML-DSA-65 + ML-KEM-768)', value: 'pqc' },
 ]
 const signKeyItems = computed(() => [
-  { label: 'None', value: '' },
+  { label: 'None', value: 'none' },
   ...vault.ownKeys.map((k) => ({ label: k.info.userIds[0] || k.keyId, value: k.fingerprint })),
 ])
 
@@ -40,8 +40,8 @@ const defaultAlgo = computed({
   set: (v: string) => vault.updateSettings({ defaultAlgorithm: v }),
 })
 const defaultSignKey = computed({
-  get: () => vault.settings.defaultSignKey ?? '',
-  set: (v: string) => vault.updateSettings({ defaultSignKey: v || null }),
+  get: () => vault.settings.defaultSignKey ?? 'none',
+  set: (v: string) => vault.updateSettings({ defaultSignKey: v === 'none' ? null : v }),
 })
 
 function exportGnupg() {

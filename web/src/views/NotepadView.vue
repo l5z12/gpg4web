@@ -17,7 +17,7 @@ const tabs: TabsItem[] = [
 // --- Sign / Encrypt ---
 const input = ref('')
 const recipients = ref<string[]>([])
-const signWith = ref('')
+const signWith = ref('none')
 const signPass = ref('')
 const output = ref('')
 
@@ -37,7 +37,7 @@ const allKeyItems = computed(() =>
   vault.keys.map((k) => ({ label: `${k.info.userIds[0] || k.keyId} (${k.keyId.slice(-8)})`, value: k.fingerprint })),
 )
 const signItems = computed(() => [
-  { label: "Don't sign", value: '' },
+  { label: "Don't sign", value: 'none' },
   ...vault.ownKeys.map((k) => ({ label: k.info.userIds[0] || k.keyId, value: k.fingerprint })),
 ])
 const myKeyItems = computed(() =>
@@ -47,8 +47,9 @@ const myKeyItems = computed(() =>
 function doSignEncrypt() {
   if (!input.value) return toastError('Nothing to sign or encrypt')
   const hasRecipients = recipients.value.length > 0
-  const signer = signWith.value ? vault.getSecretKey(signWith.value) : null
-  if (signWith.value && !signer) return toastError('Could not unlock the signing key')
+  const wantSign = signWith.value !== 'none'
+  const signer = wantSign ? vault.getSecretKey(signWith.value) : null
+  if (wantSign && !signer) return toastError('Could not unlock the signing key')
 
   try {
     if (hasRecipients) {
@@ -139,7 +140,7 @@ const isClearsign = computed(() => cipherIn.value.includes('BEGIN PGP SIGNED MES
             <label>Sign as</label>
             <USelect v-model="signWith" :items="signItems" class="w-full" />
             <UInput
-              v-if="signWith"
+              v-if="signWith !== 'none'"
               v-model="signPass"
               type="password"
               placeholder="Signing key passphrase (if any)"

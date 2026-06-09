@@ -21,7 +21,7 @@ const tabs: TabsItem[] = [
 // --- Sign / Encrypt ---
 const seFile = ref<File | null>(null)
 const seRecipients = ref<string[]>([])
-const seSign = ref('')
+const seSign = ref('none')
 const sePass = ref('')
 const seArmor = ref(false)
 
@@ -36,7 +36,7 @@ const allKeyItems = computed(() =>
   vault.keys.map((k) => ({ label: `${k.info.userIds[0] || k.keyId} (${k.keyId.slice(-8)})`, value: k.fingerprint })),
 )
 const signItems = computed(() => [
-  { label: "Don't sign", value: '' },
+  { label: "Don't sign", value: 'none' },
   ...vault.ownKeys.map((k) => ({ label: k.info.userIds[0] || k.keyId, value: k.fingerprint })),
 ])
 const myKeyItems = computed(() =>
@@ -54,8 +54,9 @@ async function doSignEncrypt() {
   if (!seFile.value) return toastError('Choose a file')
   const data = await bytes(seFile.value)
   const hasRecipients = seRecipients.value.length > 0
-  const signer = seSign.value ? vault.getSecretKey(seSign.value) : null
-  if (seSign.value && !signer) return toastError('Could not unlock the signing key')
+  const wantSign = seSign.value !== 'none'
+  const signer = wantSign ? vault.getSecretKey(seSign.value) : null
+  if (wantSign && !signer) return toastError('Could not unlock the signing key')
 
   try {
     if (hasRecipients) {
@@ -157,7 +158,7 @@ function drop(target: 'se' | 'dv', e: DragEvent) {
 
             <label>Sign as</label>
             <USelect v-model="seSign" :items="signItems" class="w-full" />
-            <UInput v-if="seSign" v-model="sePass" type="password" placeholder="Signing key passphrase (if any)" class="w-full mt-2" />
+            <UInput v-if="seSign !== 'none'" v-model="sePass" type="password" placeholder="Signing key passphrase (if any)" class="w-full mt-2" />
 
             <div class="armor-row mt-3">
               <USwitch v-model="seArmor" />

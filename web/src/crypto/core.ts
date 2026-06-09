@@ -46,6 +46,9 @@ export interface GeneratedKey {
   publicKey: string
   secretKey: string
   algorithm: string
+  /** GnuPG-style algorithm token (e.g. "ed25519", "cv25519", "rsa3072"). */
+  curve: string | null
+  bitStrength: number | null
   userIds: string[]
   createdAt: number
   expiresAt: number | null
@@ -55,6 +58,8 @@ export interface SubkeyInfo {
   keyId: string
   fingerprint: string
   algorithm: string
+  curve: string | null
+  bitStrength: number | null
   canEncrypt: boolean
   canSign: boolean
 }
@@ -63,12 +68,17 @@ export interface KeyInfo {
   fingerprint: string
   keyId: string
   algorithm: string
+  curve: string | null
   userIds: string[]
   createdAt: number
   expiresAt: number | null
   isSecret: boolean
+  /** Whole-key capabilities (primary or any subkey). */
   canEncrypt: boolean
   canSign: boolean
+  /** The primary key's own capabilities (drives the listing usage column). */
+  primaryCanEncrypt: boolean
+  primaryCanSign: boolean
   bitStrength: number | null
   subkeys: SubkeyInfo[]
 }
@@ -182,6 +192,94 @@ export const verifyFileDetached = (
   signatureArmored: string,
   publicArmored: string,
 ): boolean => wasm.verify_file_detached(data, signatureArmored, publicArmored)
+
+// ---------------------------------------------------------------------------
+// gpg(1) engine — option parsing, command dispatch and output formatting all
+// run in the WASM core. The host provides synchronous keyring + virtual-file
+// access; interactive prompts use the replay protocol below.
+// ---------------------------------------------------------------------------
+
+/** A keyring entry as the WASM gpg engine consumes it (camelCase). */
+export interface GpgHostKey {
+  fingerprint: string
+  keyId: string
+  userIds: string[]
+  algorithm: string
+  curve: string | null
+  createdAt: number
+  expiresAt: number | null
+  isSecret: boolean
+  canEncrypt: boolean
+  canSign: boolean
+  primaryCanEncrypt: boolean
+  primaryCanSign: boolean
+  bitStrength: number | null
+  trusted: boolean
+  publicKey: string
+  subkeys: {
+    keyId: string
+    fingerprint: string
+    algorithm: string
+    curve: string | null
+    bitStrength: number | null
+    canEncrypt: boolean
+    canSign: boolean
+  }[]
+}
+
+/**
+ * The synchronous bridge the WASM gpg engine calls into for keyring and
+ * virtual-filesystem access. All methods are synchronous: the vault holds the
+ * session key, and the VFS is an in-memory map.
+ */
+export interface GpgHost {
+  listKeys(): GpgHostKey[]
+  getSecretKey(fingerprint: string): string | null
+  importArmored(armored: string): { fingerprint: string; keyId: string; isSecret: boolean }
+  removeKey(fingerprint: string): void
+  setTrusted(fingerprint: string, trusted: boolean): void
+  addGenerated(publicKey: string, secretKey: string): GpgHostKey
+  readFile(name: string): Uint8Array | null
+  writeFile(name: string, data: Uint8Array): void
+}
+
+export interface GpgPromptRequest {
+  label: string
+  password: boolean
+}
+
+export interface GpgRunResult {
+  stdout: Uint8Array
+  stderr: string
+  exitCode: number
+  /** Present when the engine needs a line of input (see replay protocol). */
+  pending: GpgPromptRequest | null
+}
+
+/**
+ * Run one `gpg` invocation in the WASM engine. `responses` carries answers to
+ * earlier prompts; when the result has a `pending` request, supply the answer
+ * and call again with it appended.
+ */
+export const gpgRun = (
+  host: GpgHost,
+  argv: string[],
+  stdin: Uint8Array | null,
+  responses: string[],
+): GpgRunResult => {
+  const r = wasm.gpg_run(host, argv, stdin ?? undefined, responses) as {
+    stdout: ArrayLike<number> | Uint8Array
+    stderr: string
+    exitCode: number
+    pending: GpgPromptRequest | null
+  }
+  return {
+    stdout: r.stdout instanceof Uint8Array ? r.stdout : Uint8Array.from(r.stdout),
+    stderr: r.stderr,
+    exitCode: r.exitCode,
+    pending: r.pending ?? null,
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Post-quantum vault

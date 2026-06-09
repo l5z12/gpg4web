@@ -40,12 +40,17 @@ neither is broken by a quantum computer.
 
 ### UX
 - Kleopatra-style layout: certificate list, notepad, sign/verify, settings.
-- **`gpg` CLI simulator** (the **Console** view): a terminal that speaks the
-  real `gpg(1)` command grammar — long/short options, `--opt=value`,
-  unambiguous abbreviations, bundled flags (`-sea`), `--` terminator — with
-  shell pipes (`|`) and redirection (`>`, `>>`, `<`) over a per-session virtual
-  filesystem. Runs `--gen-key`/`--quick-generate-key`, `--list-keys`
-  (incl. `--with-colons`), `--encrypt`/`--decrypt`, `--sign`/`--clear-sign`/
+- **`gpg` CLI** (the **Console** view): a terminal whose `gpg(1)` engine —
+  option parsing, command dispatch and output formatting — runs **inside the
+  Rust/WASM core**, so it reproduces real GnuPG 2.4 output (key listings,
+  `--with-colons` records, `gpg: …` log lines, signature-verification blocks,
+  import statistics) closely. The TypeScript layer is only the shell:
+  tokenizing, pipes (`|`) and redirection (`>`, `>>`, `<`) over a per-session
+  virtual filesystem, and the interactive prompts. Speaks the full command
+  grammar — long/short options, `--opt=value`, unambiguous abbreviations,
+  bundled flags (`-sea`), `--` terminator. Runs `--gen-key`/
+  `--quick-generate-key`, `--list-keys` (incl. `--with-colons`/`--fingerprint`),
+  `--encrypt`/`--decrypt`, `--symmetric` (`-c`), `--sign`/`--clear-sign`/
   `--detach-sign`/`--verify`, `--import`/`--export`, `--delete-keys`,
   `--enarmor`/`--dearmor`, `--print-md`, `--gen-random`, `--list-packets`, and
   more — all against your unlocked keyring, locally. Features that a browser
@@ -63,11 +68,12 @@ gpg4web/
 ├── crypto-core/          # Rust crate compiled to WASM (the only place crypto happens)
 │   ├── src/lib.rs        #   wasm-bindgen exports
 │   ├── src/pgp.rs        #   OpenPGP operations (rPGP)
+│   ├── src/gpgcli.rs     #   the gpg(1) engine: parsing, dispatch, gpg-faithful formatting
 │   └── src/vault.rs      #   ML-KEM + AES-GCM + Argon2id vault
 └── web/                  # Vue 3 + Vite front-end
-    ├── src/crypto/       #   typed wrapper around the WASM module
+    ├── src/crypto/       #   typed wrapper around the WASM module (incl. gpgRun)
     ├── src/stores/       #   Pinia vault store (lock/unlock + persistence)
-    ├── src/lib/          #   .gnupg export, zip writer, toasts, gpg CLI engine
+    ├── src/lib/          #   .gnupg export, zip writer, toasts, gpg terminal shell
     ├── src/views/        #   Certificates, Notepad, Sign/Verify, Console, Settings, About
     └── src/wasm/         #   generated WASM artifacts (built by `bun run wasm`, gitignored)
 ```

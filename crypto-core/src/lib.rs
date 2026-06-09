@@ -5,6 +5,7 @@
 //! explicit return value to the calling JavaScript.
 
 mod error;
+mod gpgcli;
 mod pgp;
 mod vault;
 

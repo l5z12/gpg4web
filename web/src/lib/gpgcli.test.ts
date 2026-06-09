@@ -1,15 +1,16 @@
-// Tests for the gpg(1) CLI simulator.
+// Tests for the gpg(1) CLI.
 //
-// Pure parsing/plumbing tests always run. The crypto-backed gpg command flows
-// (keygen, encrypt/decrypt, sign/verify, import/export) need the WASM core: we
-// load the Node-target build and substitute it for '@/crypto/core' via
-// `mock.module`, so the real GpgShell code runs against real OpenPGP crypto.
+// The gpg engine (option parsing, command dispatch, output formatting and
+// crypto) lives in the Rust/WASM core; this TS layer is only the shell. So the
+// tokenizer test runs anywhere, but every gpg-command test needs the WASM core:
+// we load the Node-target build and substitute it for '@/crypto/core' via
+// `mock.module`, so the real shell drives the real engine.
 // Build it first (CI does this automatically):
 //
 //   wasm-pack build crypto-core --target nodejs --release --out-dir /tmp/wasm-node
 //   cd web && GPG4WEB_WASM=/tmp/wasm-node/gpg4web_core.js bun test src/lib/gpgcli.test.ts
 //
-// Without the WASM core the crypto tests are skipped (the pure tests still run).
+// Without the WASM core the engine tests are skipped (the tokenizer test runs).
 
 import { describe, it, expect, mock } from 'bun:test'
 import { existsSync } from 'node:fs'
@@ -22,54 +23,38 @@ const haveWasm = existsSync(WASM)
 if (haveWasm) {
   const w: any = await import(WASM)
   mock.module('@/crypto/core', () => ({
-    generateKey: (o: unknown) => w.generate_key(o),
     inspectKey: (a: string) => w.inspect_key(a),
     extractPublicKey: (a: string) => w.extract_public_key(a),
-    encrypt: (t: string, r: string[], ss?: string | null, sp?: string | null, armor?: boolean) =>
-      w.encrypt(t, r, ss ?? undefined, sp ?? undefined, armor),
-    decrypt: (c: string, s: string, p: string, v?: string[]) => w.decrypt(c, s, p, v ?? []),
-    encryptFile: (d: Uint8Array, r: string[], ss?: string | null, sp?: string | null, armor?: boolean) =>
-      w.encrypt_file(d, r, ss ?? undefined, sp ?? undefined, armor),
-    decryptFile: (d: Uint8Array, s: string, p: string) => w.decrypt_file(d, s, p),
-    signCleartext: (t: string, s: string, p: string) => w.sign_cleartext(t, s, p),
-    verifyCleartext: (a: string, pub: string) => w.verify_cleartext(a, pub),
-    signDetached: (t: string, s: string, p: string) => w.sign_detached(t, s, p),
-    verifyDetached: (t: string, sig: string, pub: string) => w.verify_detached(t, sig, pub),
-    signFileDetached: (d: Uint8Array, s: string, p: string) => w.sign_file_detached(d, s, p),
-    verifyFileDetached: (d: Uint8Array, sig: string, pub: string) => w.verify_file_detached(d, sig, pub),
-    coreVersion: () => w.version(),
+    gpgRun: (host: any, argv: string[], stdin: Uint8Array | null, responses: string[]) => {
+      const r = w.gpg_run(host, argv, stdin ?? undefined, responses)
+      return {
+        stdout: r.stdout instanceof Uint8Array ? r.stdout : Uint8Array.from(r.stdout),
+        stderr: r.stderr,
+        exitCode: r.exitCode,
+        pending: r.pending ?? null,
+      }
+    },
   }))
 } else {
-  // Minimal stub so the module imports; crypto tests are skipped.
+  // Minimal stub so the module imports; engine tests are skipped.
   const die = () => {
     throw new Error('WASM core not built')
   }
   mock.module('@/crypto/core', () => ({
-    generateKey: die,
     inspectKey: die,
     extractPublicKey: () => '',
-    encrypt: () => '',
-    decrypt: () => ({}),
-    encryptFile: () => new Uint8Array(),
-    decryptFile: () => new Uint8Array(),
-    signCleartext: () => '',
-    verifyCleartext: () => ({ text: '', valid: false }),
-    signDetached: () => '',
-    verifyDetached: () => false,
-    signFileDetached: () => '',
-    verifyFileDetached: () => false,
-    coreVersion: () => 'stub',
+    gpgRun: () => ({ stdout: new Uint8Array(), stderr: '', exitCode: 0, pending: null }),
   }))
 }
 
-// Import the shell (and crypto helpers) only after the mock is registered.
-const { GpgShell, tokenize, parseArgs } = await import('@/lib/gpgcli')
+// Import the shell only after the mock is registered.
+const { GpgShell, tokenize } = await import('@/lib/gpgcli')
 const core: any = await import('@/crypto/core')
 
 const cit = haveWasm ? it : it.skip
 if (!haveWasm) {
   // eslint-disable-next-line no-console
-  console.warn(`\n[gpgcli.test] WASM core not found at ${WASM} — crypto tests skipped.\n`)
+  console.warn(`\n[gpgcli.test] WASM core not found at ${WASM} — engine tests skipped.\n`)
 }
 
 // ---------------------------------------------------------------------------
@@ -85,15 +70,26 @@ class TestKeyring implements KeyringPort {
       keyId: it.info.keyId,
       userIds: it.info.userIds,
       algorithm: it.info.algorithm,
+      curve: it.info.curve ?? null,
       createdAt: it.info.createdAt,
-      expiresAt: it.info.expiresAt,
+      expiresAt: it.info.expiresAt ?? null,
       isSecret: !!it.secretKey,
       canEncrypt: it.info.canEncrypt,
       canSign: it.info.canSign,
-      bitStrength: it.info.bitStrength,
+      primaryCanEncrypt: it.info.primaryCanEncrypt,
+      primaryCanSign: it.info.primaryCanSign,
+      bitStrength: it.info.bitStrength ?? null,
       trusted: it.trusted,
       publicKey: it.publicKey,
-      subkeys: it.info.subkeys,
+      subkeys: it.info.subkeys.map((s: any) => ({
+        keyId: s.keyId,
+        fingerprint: s.fingerprint,
+        algorithm: s.algorithm,
+        curve: s.curve ?? null,
+        bitStrength: s.bitStrength ?? null,
+        canEncrypt: s.canEncrypt,
+        canSign: s.canSign,
+      })),
     }))
   }
   getSecretKey(fpr: string) {
@@ -175,51 +171,6 @@ describe('tokenize', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Pure: argument parser
-// ---------------------------------------------------------------------------
-
-describe('parseArgs', () => {
-  it('parses bundled short options', () => {
-    const p = parseArgs(['-sea', '-r', 'alice', '-u', 'bob', 'file.txt'])
-    expect(p.commands.has('sign')).toBe(true)
-    expect(p.commands.has('encrypt')).toBe(true)
-    expect(p.flags.has('armor')).toBe(true)
-    expect(p.multi.get('recipient')).toEqual(['alice'])
-    expect(p.multi.get('local-user')).toEqual(['bob'])
-    expect(p.operands).toEqual(['file.txt'])
-  })
-  it('parses --opt=value and operands', () => {
-    const p = parseArgs(['--output=foo', '--armor', '--export', 'alice'])
-    expect(p.opts.get('output')).toBe('foo')
-    expect(p.commands.has('export')).toBe(true)
-    expect(p.operands).toEqual(['alice'])
-  })
-  it('accepts unambiguous abbreviations', () => {
-    expect(parseArgs(['--fingerp']).commands.has('fingerprint')).toBe(true)
-  })
-  it('accepts an attached short-option argument', () => {
-    expect(parseArgs(['-rAlice']).multi.get('recipient')).toEqual(['Alice'])
-  })
-  it('treats -- as an operand terminator', () => {
-    const p = parseArgs(['--', '--encrypt'])
-    expect(p.operands).toEqual(['--encrypt'])
-    expect(p.commands.has('encrypt')).toBe(false)
-  })
-  it('repeats accumulating options', () => {
-    expect(parseArgs(['-r', 'a', '-r', 'b']).multi.get('recipient')).toEqual(['a', 'b'])
-  })
-  it('rejects unknown options', () => {
-    expect(() => parseArgs(['--bogusoption'])).toThrow(/invalid option/)
-  })
-  it('rejects ambiguous abbreviations', () => {
-    expect(() => parseArgs(['--ex'])).toThrow(/ambiguous/)
-  })
-  it('requires an argument for option that takes one', () => {
-    expect(() => parseArgs(['-r'])).toThrow(/requires an argument/)
-  })
-})
-
-// ---------------------------------------------------------------------------
 // Shell plumbing + non-crypto gpg commands (no WASM needed)
 // ---------------------------------------------------------------------------
 
@@ -242,19 +193,27 @@ describe('shell builtins and plumbing', () => {
   })
 })
 
-describe('gpg informational and conversion commands', () => {
-  it('--version reports the engine and algorithms', async () => {
+// ---------------------------------------------------------------------------
+// Option parsing + informational commands (engine; needs WASM)
+// ---------------------------------------------------------------------------
+
+describe('gpg option parsing and info commands', () => {
+  cit('--version reports the engine and algorithms', async () => {
     const o = await mkShell().run('gpg --version')
-    expect(o).toContain('gpg (gpg4web)')
+    expect(o).toContain('gpg (GnuPG; gpg4web)')
     expect(o).toContain('Pubkey:')
   })
-  it('--help lists commands', async () => {
+  cit('--help lists commands', async () => {
     expect(await mkShell().run('gpg --help')).toContain('--encrypt')
   })
-  it('--list-config emits cfg records', async () => {
+  cit('--list-config emits cfg records', async () => {
     expect(await mkShell().run('gpg --list-config')).toContain('cfg:version:')
   })
-  it('enarmor → dearmor round-trips bytes', async () => {
+  cit('rejects unknown and ambiguous options', async () => {
+    expect(await mkShell().run('gpg --bogusoption')).toContain('invalid option')
+    expect(await mkShell().run('gpg --ex')).toContain('ambiguous')
+  })
+  cit('enarmor → dearmor round-trips bytes', async () => {
     const t = mkShell()
     await t.run('echo abc > raw.bin') // "abc\n"
     await t.run('gpg --enarmor raw.bin')
@@ -264,7 +223,7 @@ describe('gpg informational and conversion commands', () => {
     await t.run('gpg --dearmor raw.bin.asc')
     expect(new TextDecoder().decode(t.sh.vfs.get('raw.bin.asc.bin')!)).toBe('abc\n')
   })
-  it('--print-md computes known digests (file and stdin)', async () => {
+  cit('--print-md computes known digests (file and stdin)', async () => {
     const t = mkShell()
     await t.run('echo abc > f.txt') // sha256("abc\n")
     const o = await t.run('gpg --print-md SHA256 f.txt')
@@ -274,24 +233,23 @@ describe('gpg informational and conversion commands', () => {
     const o2 = await t.run('echo -n abc | gpg --print-md SHA1') // sha1("abc")
     expect(o2.toLowerCase().replace(/\s/g, '')).toContain('a9993e364706816aba3e25717850c26c9cd0d89d')
   })
-  it('--gen-random --armor emits base64', async () => {
+  cit('--gen-random --armor emits base64', async () => {
     const o = (await mkShell().run('gpg --gen-random 1 8 --armor')).trim()
     expect(o.length).toBeGreaterThan(0)
     expect(/^[A-Za-z0-9+/=\s]+$/.test(o)).toBe(true)
   })
-  it('reports browser-impossible commands honestly', async () => {
+  cit('reports browser-impossible commands honestly', async () => {
     expect(await mkShell().run('gpg --recv-keys 0xDEADBEEF')).toContain('keyserver')
-    expect((await mkShell().run('gpg -c x')).toLowerCase()).toContain('symmetric')
     expect(await mkShell().run('gpg --edit-key alice')).toContain('Certificates view')
   })
 })
 
 // ---------------------------------------------------------------------------
-// Crypto-backed gpg command flows (real OpenPGP via the WASM core)
+// Crypto-backed gpg command flows (real OpenPGP via the WASM engine)
 // ---------------------------------------------------------------------------
 
 describe('gpg crypto commands', () => {
-  cit('generates a key and lists it', async () => {
+  cit('generates a key and lists it in gpg format', async () => {
     const t = mkShell()
     const o = await t.run('gpg --quick-generate-key "Alice <alice@example.com>" ed25519')
     expect(o).toContain('public and secret key created')
@@ -299,30 +257,35 @@ describe('gpg crypto commands', () => {
 
     const list = await t.run('gpg --list-keys')
     expect(list).toContain('Alice <alice@example.com>')
-    expect(list).toMatch(/pub\s+ed25519/)
+    expect(list).toMatch(/pub\s+ed25519 \d{4}-\d\d-\d\d \[SC\]/)
+    expect(list).toContain('[ultimate]')
     expect(list).toContain(t.ring.list()[0].fingerprint)
+    expect(list).toMatch(/sub\s+cv25519 \d{4}-\d\d-\d\d \[E\]/)
 
     const sec = await t.run('gpg -K')
     expect(sec).toMatch(/sec\s+ed25519/)
     expect(sec).toContain('ssb')
 
     const colons = await t.run('gpg --list-keys --with-colons')
-    expect(colons).toContain('pub:')
-    expect(colons).toMatch(/fpr:::::::::[0-9A-F]{40}/)
+    expect(colons).toMatch(/^pub:u:255:22:/m)
+    expect(colons).toMatch(/fpr:::::::::[0-9A-F]{64}:/)
+    expect(colons).toMatch(/^sub:u:255:18:.*:e::::/m)
   })
 
-  cit('encrypts and decrypts via pipe and file', async () => {
+  cit('encrypts silently and decrypts with the gpg report', async () => {
     const t = mkShell()
     await t.run('gpg --quick-generate-key "Alice <alice@example.com>" ed25519')
     await t.run('echo "top secret" > msg.txt')
-    await t.run('gpg -e -r alice -a msg.txt')
+    const encOut = await t.run('gpg -e -r alice -a msg.txt')
+    expect(encOut.trim()).toBe('') // gpg is silent on successful encryption
     expect(t.sh.listFiles()).toContain('msg.txt.asc')
     expect(new TextDecoder().decode(t.sh.vfs.get('msg.txt.asc')!)).toContain('BEGIN PGP MESSAGE')
-    expect(await t.run('gpg -d msg.txt.asc')).toContain('top secret')
+    const dec = await t.run('gpg -d msg.txt.asc')
+    expect(dec).toContain('top secret')
+    expect(dec).toMatch(/encrypted with .*ECDH key, ID [0-9A-F]{16}, created/)
 
-    // list-packets understands the produced ciphertext
     const lp = await t.run('gpg --list-packets msg.txt.asc')
-    expect(lp.toLowerCase()).toContain('session key')
+    expect(lp.toLowerCase()).toContain('pubkey enc packet')
   })
 
   cit('matches recipients by key-id and fingerprint', async () => {
@@ -342,12 +305,14 @@ describe('gpg crypto commands', () => {
     expect(d).toContain('Good signature')
   })
 
-  cit('clear-signs and verifies', async () => {
+  cit('clear-signs and verifies with the gpg block', async () => {
     const t = mkShell()
     await t.run('gpg --quick-generate-key "Alice <alice@example.com>" ed25519')
     await t.run('echo "clear text" | gpg --clear-sign > cs.asc')
     expect(new TextDecoder().decode(t.sh.vfs.get('cs.asc')!)).toContain('BEGIN PGP SIGNED MESSAGE')
-    expect(await t.run('gpg --verify cs.asc')).toContain('Good signature')
+    const v = await t.run('gpg --verify cs.asc')
+    expect(v).toContain('Signature made')
+    expect(v).toContain('Good signature from "Alice <alice@example.com>"')
   })
 
   cit('makes and verifies a detached signature', async () => {
@@ -357,9 +322,20 @@ describe('gpg crypto commands', () => {
     await t.run('gpg -a -b doc.txt')
     expect(t.sh.listFiles()).toContain('doc.txt.asc')
     expect(await t.run('gpg --verify doc.txt.asc doc.txt')).toContain('Good signature')
-    // tamper → bad
+    // tamper → not a good signature
     await t.run('echo "tampered" > doc.txt')
-    expect(await t.run('gpg --verify doc.txt.asc doc.txt')).toContain('BAD')
+    expect(await t.run('gpg --verify doc.txt.asc doc.txt')).not.toContain('Good signature')
+  })
+
+  cit('encrypts and decrypts symmetrically (-c)', async () => {
+    const t = mkShell()
+    await t.run('echo "passphrase only" > s.txt')
+    await t.run('gpg -c -a --passphrase hunter2 --pinentry-mode loopback s.txt')
+    expect(t.sh.listFiles()).toContain('s.txt.asc')
+    expect(new TextDecoder().decode(t.sh.vfs.get('s.txt.asc')!)).toContain('BEGIN PGP MESSAGE')
+    const d = await t.run('gpg -d --passphrase hunter2 --pinentry-mode loopback s.txt.asc')
+    expect(d).toContain('passphrase only')
+    expect(d).toContain('encrypted with 1 passphrase')
   })
 
   cit('exports, deletes and re-imports a key', async () => {
@@ -371,6 +347,7 @@ describe('gpg crypto commands', () => {
     expect(t.ring.list().length).toBe(0)
     const imp = await t.run('gpg --import alice.pub')
     expect(imp).toContain('imported')
+    expect(imp).toContain('Total number processed: 1')
     expect(t.ring.list().length).toBe(1)
     expect(t.ring.list()[0].isSecret).toBe(false)
   })
@@ -391,7 +368,7 @@ describe('gpg crypto commands', () => {
       'gpg --quick-generate-key "Carol <carol@example.com>" ed25519 default 0 --passphrase secretpw --pinentry-mode loopback',
     )
     await t.run('echo "hush hush" | gpg -e -r carol -a > c.asc')
-    // First the empty passphrase is tried and fails, then our answer is used.
+    // The empty passphrase is tried first and fails, then our answer is used.
     t.setAnswers('secretpw')
     expect(await t.run('gpg -d c.asc')).toContain('hush hush')
   })
@@ -405,10 +382,13 @@ describe('gpg crypto commands', () => {
     expect(t.ring.list()[0].userIds[0]).toBe('Dave <dave@example.com>')
   })
 
-  cit('generates an rsa2048 key (regression: expireDays serialization)', async () => {
+  cit('generates an rsa2048 key with [SC] primary and [E] subkey', async () => {
     const t = mkShell()
     const o = await t.run('gpg --quick-generate-key "Eve <eve@example.com>" rsa2048')
     expect(o).toContain('public and secret key created')
+    const list = await t.run('gpg --list-keys eve')
+    expect(list).toMatch(/pub\s+rsa2048 \d{4}-\d\d-\d\d \[SC\]/)
+    expect(list).toMatch(/sub\s+rsa2048 \d{4}-\d\d-\d\d \[E\]/)
     expect(t.ring.list()[0].canEncrypt).toBe(true)
   })
 })

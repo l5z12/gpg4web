@@ -10,15 +10,22 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 wasm-bindgen = "0.2"
+js-sys = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde-wasm-bindgen = "0.6"
+# Digests for `gpg --print-md` (SHA-256/384/512 via sha2; SHA-1 via sha1).
+sha1 = "0.10"
 getrandom = { version = "0.2", features = ["js"] }
 rand = "0.8"
 
 # OpenPGP. `draft-pqc` enables the IETF draft post-quantum algorithms
 # (ML-KEM, ML-DSA, SLH-DSA) for OpenPGP keys.
 pgp = { version = "0.16", features = ["draft-pqc"] }
+# Pinned to the exact version rPGP 0.16 uses so `rsa::RsaPublicKey` unifies to
+# the same type; we only need the `PublicKeyParts` trait to read the modulus
+# bit length for GnuPG-style key listings.
+rsa = "0.9.7"
 smallvec = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "wasmbind"] }
 

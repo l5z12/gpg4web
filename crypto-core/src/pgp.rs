@@ -18,10 +18,12 @@ use pgp::crypto::ecc_curve::ECCCurve;
 use pgp::crypto::hash::HashAlgorithm;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::packet::SignatureConfig;
-use pgp::packet::{SignatureType, Subpacket, SubpacketData};
+use pgp::packet::{Signature, SignatureType, Subpacket, SubpacketData};
 use pgp::types::{
-    CompressionAlgorithm, KeyDetails as _, KeyVersion, Password, PublicKeyTrait,
+    CompressionAlgorithm, EcdsaPublicParams, KeyDetails as _, KeyVersion, Password,
+    PublicKeyTrait, PublicParams, StringToKey,
 };
+use rsa::traits::PublicKeyParts as _;
 use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
 
@@ -64,6 +66,11 @@ pub struct GeneratedKey {
     pub public_key: String,
     pub secret_key: String,
     pub algorithm: String,
+    /// GnuPG-style algorithm token for the primary key (e.g. "ed25519",
+    /// "cv25519", "rsa3072", "nistp256"), when one applies.
+    pub curve: Option<String>,
+    /// Key strength in bits, as GnuPG reports it (255 for Curve25519/Ed25519).
+    pub bit_strength: Option<u32>,
     pub user_ids: Vec<String>,
     pub created_at: i64,
     pub expires_at: Option<i64>,
@@ -75,6 +82,8 @@ pub struct SubkeyInfo {
     pub key_id: String,
     pub fingerprint: String,
     pub algorithm: String,
+    pub curve: Option<String>,
+    pub bit_strength: Option<u32>,
     pub can_encrypt: bool,
     pub can_sign: bool,
 }
@@ -89,9 +98,17 @@ pub struct KeyInfo {
     pub created_at: i64,
     pub expires_at: Option<i64>,
     pub is_secret: bool,
+    /// Whole-key capabilities (primary or any subkey can do it).
     pub can_encrypt: bool,
     pub can_sign: bool,
+    /// The primary key's *own* capabilities (its key-flag subpackets) — these
+    /// drive the usage column on the `pub`/`sec` line, distinct from the
+    /// whole-key flags above.
+    pub primary_can_encrypt: bool,
+    pub primary_can_sign: bool,
     pub bit_strength: Option<u32>,
+    /// GnuPG-style algorithm token for the primary key.
+    pub curve: Option<String>,
     pub subkeys: Vec<SubkeyInfo>,
 }
 
@@ -161,6 +178,50 @@ fn user_id_strings(details: &pgp::composed::SignedKeyDetails) -> Vec<String> {
 
 fn algorithm_name(alg: pgp::crypto::public_key::PublicKeyAlgorithm) -> String {
     format!("{:?}", alg)
+}
+
+/// Key strength in bits, the way GnuPG reports it (255 for Curve25519/Ed25519,
+/// the modulus length for RSA, the field size for NIST curves).
+fn key_bits(k: &impl PublicKeyTrait) -> Option<u32> {
+    match k.public_params() {
+        PublicParams::RSA(p) => Some(p.key.n().bits() as u32),
+        PublicParams::DSA(_) => None,
+        PublicParams::Elgamal(_) => None,
+        PublicParams::ECDSA(p) => Some(ecdsa_curve(p).nbits() as u32),
+        PublicParams::ECDH(p) => Some(p.curve().nbits() as u32),
+        PublicParams::EdDSALegacy(_) | PublicParams::Ed25519(_) | PublicParams::X25519(_) => {
+            Some(255)
+        }
+        PublicParams::Ed448(_) => Some(456),
+        PublicParams::X448(_) => Some(448),
+        _ => None,
+    }
+}
+
+fn ecdsa_curve(p: &EcdsaPublicParams) -> ECCCurve {
+    match p {
+        EcdsaPublicParams::P256 { .. } => ECCCurve::P256,
+        EcdsaPublicParams::P384 { .. } => ECCCurve::P384,
+        EcdsaPublicParams::P521 { .. } => ECCCurve::P521,
+        EcdsaPublicParams::Secp256k1 { .. } => ECCCurve::Secp256k1,
+        EcdsaPublicParams::Unsupported { curve, .. } => curve.clone(),
+    }
+}
+
+/// GnuPG-style algorithm token for ECC keys (cv25519/ed25519/nistp256/…), or
+/// None for non-ECC algorithms (RSA/DSA/PQC), where the algorithm name + bits
+/// carry the information instead.
+fn key_curve(k: &impl PublicKeyTrait) -> Option<String> {
+    let curve = match k.public_params() {
+        PublicParams::ECDSA(p) => ecdsa_curve(p),
+        PublicParams::ECDH(p) => p.curve(),
+        PublicParams::EdDSALegacy(_) | PublicParams::Ed25519(_) => ECCCurve::Ed25519,
+        PublicParams::X25519(_) => ECCCurve::Curve25519,
+        PublicParams::Ed448(_) => return Some("ed448".into()),
+        PublicParams::X448(_) => return Some("cv448".into()),
+        _ => return None,
+    };
+    Some(curve.alias().unwrap_or_else(|| curve.name()).to_string())
 }
 
 /// Whether a component key can encrypt, including the draft PQC KEM algorithms
@@ -311,6 +372,8 @@ pub fn generate_key(opts: GenerateOptions) -> Result<GeneratedKey> {
         public_key,
         secret_key,
         algorithm: opts.algorithm,
+        curve: key_curve(&signed_public.primary_key),
+        bit_strength: key_bits(&signed_public.primary_key),
         user_ids: user_id_strings(&signed_public.details),
         created_at: signed_public.primary_key.created_at().timestamp(),
         expires_at,
@@ -331,23 +394,67 @@ pub fn inspect_key(armored: &str) -> Result<KeyInfo> {
     Ok(key_info_from_public(&pub_key))
 }
 
+/// Resolve (can_sign, can_encrypt) from the key-flag subpackets carried by a
+/// component key's self-signatures, falling back to the algorithm when no key
+/// flags are present (so the listing matches GnuPG's usage column exactly).
+fn usage_from_sigs<'a>(
+    sigs: impl Iterator<Item = &'a Signature>,
+    fallback: (bool, bool),
+) -> (bool, bool) {
+    let mut sign = false;
+    let mut enc = false;
+    let mut found = false;
+    for sig in sigs {
+        let f = sig.key_flags();
+        if f.sign() || f.certify() || f.encrypt_comms() || f.encrypt_storage() || f.authentication()
+        {
+            found = true;
+            if f.sign() {
+                sign = true;
+            }
+            if f.encrypt_comms() || f.encrypt_storage() {
+                enc = true;
+            }
+        }
+    }
+    if found {
+        (sign, enc)
+    } else {
+        fallback
+    }
+}
+
 fn key_info_from_public(key: &SignedPublicKey) -> KeyInfo {
-    let subkeys = key
+    let subkeys: Vec<SubkeyInfo> = key
         .public_subkeys
         .iter()
-        .map(|sk| SubkeyInfo {
-            key_id: fmt_key_id(&sk.key.key_id()),
-            fingerprint: fmt_fingerprint(&sk.key.fingerprint()),
-            algorithm: algorithm_name(sk.key.algorithm()),
-            can_encrypt: can_encrypt_alg(&sk.key),
-            can_sign: can_sign_alg(&sk.key),
+        .map(|sk| {
+            let (s_sign, s_enc) = usage_from_sigs(
+                sk.signatures.iter(),
+                (can_sign_alg(&sk.key), can_encrypt_alg(&sk.key)),
+            );
+            SubkeyInfo {
+                key_id: fmt_key_id(&sk.key.key_id()),
+                fingerprint: fmt_fingerprint(&sk.key.fingerprint()),
+                algorithm: algorithm_name(sk.key.algorithm()),
+                curve: key_curve(&sk.key),
+                bit_strength: key_bits(&sk.key),
+                can_encrypt: s_enc,
+                can_sign: s_sign,
+            }
         })
         .collect();
 
-    let can_encrypt = can_encrypt_alg(&key.primary_key)
-        || key.public_subkeys.iter().any(|s| can_encrypt_alg(&s.key));
-    let can_sign = can_sign_alg(&key.primary_key)
-        || key.public_subkeys.iter().any(|s| can_sign_alg(&s.key));
+    let (p_sign, p_enc) = usage_from_sigs(
+        key.details
+            .users
+            .iter()
+            .flat_map(|u| u.signatures.iter())
+            .chain(key.details.direct_signatures.iter()),
+        (can_sign_alg(&key.primary_key), can_encrypt_alg(&key.primary_key)),
+    );
+    let can_encrypt = p_enc || subkeys.iter().any(|s| s.can_encrypt);
+    let can_sign = p_sign || subkeys.iter().any(|s| s.can_sign);
 
     KeyInfo {
         fingerprint: fmt_fingerprint(&key.fingerprint()),
@@ -359,7 +466,10 @@ fn key_info_from_public(key: &SignedPublicKey) -> KeyInfo {
         is_secret: false,
         can_encrypt,
         can_sign,
-        bit_strength: None,
+        primary_can_encrypt: p_enc,
+        primary_can_sign: p_sign,
+        bit_strength: key_bits(&key.primary_key),
+        curve: key_curve(&key.primary_key),
         subkeys,
     }
 }
@@ -654,4 +764,119 @@ pub fn extract_public_key(secret_armored: &str) -> Result<String> {
         .signed_public_key()
         .to_armored_string(armor_opts())
         .map_err(|e| CoreError::Pgp(format!("armor public: {e}")))
+}
+
+// ---------------------------------------------------------------------------
+// Symmetric (passphrase-only) encryption — `gpg -c`
+// ---------------------------------------------------------------------------
+
+/// Encrypt bytes with a passphrase only (no public key): an SKESK + SEIPD
+/// message, AES-256, the way `gpg --symmetric` produces one.
+pub fn encrypt_symmetric_bytes(plaintext: &[u8], passphrase: &str, armor: bool) -> Result<Vec<u8>> {
+    let mut builder = MessageBuilder::from_bytes("", plaintext.to_vec())
+        .seipd_v1(rng(), SymmetricKeyAlgorithm::AES256);
+    builder.compression(CompressionAlgorithm::ZLIB);
+    let s2k = StringToKey::new_default(rng());
+    let pw = Password::from(passphrase.to_string());
+    builder
+        .encrypt_with_password(s2k, &pw)
+        .map_err(|e| CoreError::Pgp(format!("symmetric encrypt: {e}")))?;
+    if armor {
+        builder
+            .to_armored_string(rng(), armor_opts())
+            .map(String::into_bytes)
+            .map_err(|e| CoreError::Pgp(format!("armor message: {e}")))
+    } else {
+        builder
+            .to_vec(rng())
+            .map_err(|e| CoreError::Pgp(format!("serialize message: {e}")))
+    }
+}
+
+/// Decrypt a passphrase-encrypted (symmetric) message to its bytes.
+pub fn decrypt_symmetric_bytes(ciphertext: &[u8], passphrase: &str) -> Result<Vec<u8>> {
+    let pw = Password::from(passphrase.to_string());
+    let message = if ciphertext.starts_with(b"-----BEGIN") {
+        let s = std::str::from_utf8(ciphertext)
+            .map_err(|e| CoreError::Pgp(format!("utf8: {e}")))?;
+        let (m, _) =
+            Message::from_string(s).map_err(|e| CoreError::Pgp(format!("parse message: {e}")))?;
+        m
+    } else {
+        Message::from_bytes(Cursor::new(ciphertext.to_vec()))
+            .map_err(|e| CoreError::Pgp(format!("parse message: {e}")))?
+    };
+    let mut message = message
+        .decrypt_with_password(&pw)
+        .map_err(|e| CoreError::Pgp(format!("decrypt failed: {e}")))?;
+    while message.is_compressed() {
+        message = message
+            .decompress()
+            .map_err(|e| CoreError::Pgp(format!("decompress: {e}")))?;
+    }
+    message
+        .as_data_vec()
+        .map_err(|e| CoreError::Pgp(format!("read data: {e}")))
+}
+
+// ---------------------------------------------------------------------------
+// Signature metadata (for faithful `gpg --verify` reporting)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignatureInfo {
+    /// 16-hex issuer key id, if the signature carries one.
+    pub key_id: Option<String>,
+    /// Full issuer fingerprint, if present (v4+ signatures embed it).
+    pub fingerprint: Option<String>,
+    /// Signature creation time (unix seconds).
+    pub created: Option<i64>,
+    /// OpenPGP public-key algorithm id.
+    pub pub_algo: u8,
+    /// OpenPGP hash algorithm id.
+    pub hash_algo: u8,
+    /// Signature class (type) byte.
+    pub sig_class: u8,
+}
+
+fn sig_info(sig: &Signature) -> SignatureInfo {
+    let fpr = sig
+        .issuer_fingerprint()
+        .first()
+        .map(|f| fmt_fingerprint(f));
+    let key_id = sig
+        .issuer()
+        .first()
+        .map(|k| fmt_key_id(k))
+        .or_else(|| {
+            fpr.as_ref()
+                .map(|f| f[f.len().saturating_sub(16)..].to_string())
+        });
+    SignatureInfo {
+        key_id,
+        fingerprint: fpr,
+        created: sig.created().map(|d| d.timestamp()),
+        pub_algo: sig.config().map(|c| u8::from(c.pub_alg)).unwrap_or(0),
+        hash_algo: sig.hash_alg().map(u8::from).unwrap_or(0),
+        sig_class: sig.typ().map(u8::from).unwrap_or(0),
+    }
+}
+
+/// Metadata of the first signature in a cleartext-signed message.
+pub fn cleartext_signature_info(armored: &str) -> Result<SignatureInfo> {
+    let (msg, _) = CleartextSignedMessage::from_string(armored)
+        .map_err(|e| CoreError::Pgp(format!("parse clearsign: {e}")))?;
+    let sig = msg
+        .signatures()
+        .first()
+        .ok_or_else(|| CoreError::Pgp("no signature in message".into()))?;
+    Ok(sig_info(&sig.signature))
+}
+
+/// Metadata of a detached/standalone signature.
+pub fn detached_signature_info(signature_armored: &str) -> Result<SignatureInfo> {
+    let (sig, _) = StandaloneSignature::from_string(signature_armored)
+        .map_err(|e| CoreError::Pgp(format!("parse signature: {e}")))?;
+    Ok(sig_info(&sig.signature))
 }

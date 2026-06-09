@@ -30,11 +30,14 @@ function toCliKey(k: ReturnType<typeof vault.keyByFingerprint> & object): CliKey
     keyId: k.keyId,
     userIds: k.info.userIds,
     algorithm: k.info.algorithm,
+    curve: k.info.curve ?? null,
     createdAt: k.info.createdAt,
     expiresAt: k.info.expiresAt,
     isSecret: !!k.secretKeyEnc,
     canEncrypt: k.info.canEncrypt,
     canSign: k.info.canSign,
+    primaryCanEncrypt: k.info.primaryCanEncrypt,
+    primaryCanSign: k.info.primaryCanSign,
     bitStrength: k.info.bitStrength,
     trusted: !!k.trusted,
     publicKey: k.publicKey,
@@ -42,6 +45,8 @@ function toCliKey(k: ReturnType<typeof vault.keyByFingerprint> & object): CliKey
       keyId: s.keyId,
       fingerprint: s.fingerprint,
       algorithm: s.algorithm,
+      curve: s.curve ?? null,
+      bitStrength: s.bitStrength ?? null,
       canEncrypt: s.canEncrypt,
       canSign: s.canSign,
     })),
@@ -67,12 +72,16 @@ const keyringPort: KeyringPort = {
 const shell = shallowRef(new GpgShell(keyringPort))
 
 // --- Prompt handling (interactive commands) ---------------------------------
+/** Thrown into a running command when the user presses Ctrl-C. */
+class ConsoleInterrupt extends Error {}
+
 const promptState = ref<{
   active: boolean
   label: string
   password: boolean
   resolve: ((v: string) => void) | null
-}>({ active: false, label: '', password: false, resolve: null })
+  reject: ((e: unknown) => void) | null
+}>({ active: false, label: '', password: false, resolve: null, reject: null })
 
 const io: ShellIO = {
   write: (t) => emit(t, 'out'),
@@ -80,8 +89,8 @@ const io: ShellIO = {
   prompt: (label, opts) =>
     // The label is shown live as the prompt prefix (see promptLabel) and then
     // echoed with the typed value on submit, so we don't emit it to scrollback here.
-    new Promise<string>((resolve) => {
-      promptState.value = { active: true, label, password: !!opts?.password, resolve }
+    new Promise<string>((resolve, reject) => {
+      promptState.value = { active: true, label, password: !!opts?.password, resolve, reject }
       void nextTick(() => inputEl.value?.focus())
     }),
 }
@@ -102,7 +111,7 @@ async function submit() {
     const masked = promptState.value.password ? '•'.repeat(Math.min(val.length, 8)) : val
     emit(`${promptState.value.label}${masked}`, 'in')
     const resolve = promptState.value.resolve
-    promptState.value = { active: false, label: '', password: false, resolve: null }
+    promptState.value = { active: false, label: '', password: false, resolve: null, reject: null }
     input.value = ''
     resolve(val)
     return
@@ -119,7 +128,9 @@ async function submit() {
   try {
     await shell.value.run(line, io)
   } catch (e) {
-    emit(`error: ${e instanceof Error ? e.message : String(e)}`, 'out')
+    // A Ctrl-C interrupt already echoed "^C"; only surface real errors.
+    if (!(e instanceof ConsoleInterrupt))
+      emit(`error: ${e instanceof Error ? e.message : String(e)}`, 'out')
   } finally {
     busy.value = false
     refreshVfs()
@@ -127,7 +138,43 @@ async function submit() {
   }
 }
 
+// Focus the prompt when the terminal is clicked — but not when the user is
+// selecting text (the mouseup that ends a drag-select fires a click too, and
+// focusing the input would clear the selection and scroll to the bottom).
+function focusInput() {
+  const sel = window.getSelection()
+  if (sel && !sel.isCollapsed && sel.toString().length > 0) return
+  inputEl.value?.focus({ preventScroll: true })
+}
+
+// Ctrl-C: copy if there's a selection, otherwise interrupt — cancel an
+// awaiting interactive prompt, or abandon the current input line.
+function handleInterrupt() {
+  if (promptState.value.active && promptState.value.reject) {
+    emit(`${promptState.value.label}^C`, 'in')
+    const reject = promptState.value.reject
+    promptState.value = { active: false, label: '', password: false, resolve: null, reject: null }
+    input.value = ''
+    reject(new ConsoleInterrupt('cancelled'))
+    return
+  }
+  emit(`gpg> ${input.value}^C`, 'in')
+  input.value = ''
+  histIdx.value = null
+}
+
 function onKey(e: KeyboardEvent) {
+  if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
+    // Don't steal a copy: let the browser handle Ctrl-C when text is selected
+    // either in the scrollback or inside the input.
+    const el = inputEl.value
+    const inputHasSelection = !!el && el.selectionStart !== el.selectionEnd
+    const docSel = window.getSelection()
+    if (inputHasSelection || (docSel && docSel.toString().length > 0)) return
+    e.preventDefault()
+    handleInterrupt()
+    return
+  }
   if (promptState.value.active) return // no history nav mid-prompt
   if (e.key === 'ArrowUp') {
     e.preventDefault()
@@ -148,24 +195,6 @@ function onKey(e: KeyboardEvent) {
     e.preventDefault()
     lines.value = []
   }
-}
-
-// --- Example launcher --------------------------------------------------------
-const examples = [
-  { label: 'List keys', cmd: 'gpg --list-keys' },
-  { label: 'List secret keys', cmd: 'gpg -K' },
-  { label: 'Fingerprints', cmd: 'gpg --fingerprint' },
-  { label: 'Machine listing', cmd: 'gpg --list-keys --with-colons' },
-  { label: 'Quick keygen', cmd: 'gpg --quick-generate-key "Alice <alice@example.com>" ed25519' },
-  { label: 'Encrypt (pipe)', cmd: 'echo "hello" | gpg -e -r alice -a' },
-  { label: 'Export public', cmd: 'gpg --armor --export alice' },
-  { label: 'Version', cmd: 'gpg --version' },
-  { label: 'Help', cmd: 'gpg --help' },
-]
-function runExample(cmd: string) {
-  if (busy.value || promptState.value.active) return
-  input.value = cmd
-  void submit()
 }
 
 // --- Virtual filesystem panel ------------------------------------------------
@@ -215,7 +244,7 @@ onMounted(() => {
 
     <div class="cli-grid">
       <div class="cli-main">
-        <div ref="scrollEl" class="terminal" @click="inputEl?.focus()">
+        <div ref="scrollEl" class="terminal" @click="focusInput">
           <div v-for="(l, i) in lines" :key="i" class="term-line" :class="l.kind">
             <span>{{ l.text || ' ' }}</span>
           </div>
@@ -234,19 +263,6 @@ onMounted(() => {
               @keydown="onKey"
             />
           </div>
-        </div>
-
-        <div class="examples">
-          <button
-            v-for="ex in examples"
-            :key="ex.cmd"
-            class="chip"
-            :disabled="busy || promptState.active"
-            :title="ex.cmd"
-            @click="runExample(ex.cmd)"
-          >
-            {{ ex.label }}
-          </button>
         </div>
       </div>
 
@@ -340,30 +356,6 @@ onMounted(() => {
   color: #eaeef4;
   font: inherit;
   caret-color: #34d399;
-}
-.examples {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
-.chip {
-  font-size: 0.76rem;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--ui-border);
-  background: var(--ui-bg-elevated);
-  color: var(--ui-text-toned, var(--ui-text-muted));
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-}
-.chip:hover:not(:disabled) {
-  border-color: var(--ui-primary);
-  color: var(--ui-primary);
-}
-.chip:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 .cli-side {
   background: var(--ui-bg-elevated);
