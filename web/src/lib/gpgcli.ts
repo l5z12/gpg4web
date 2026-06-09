@@ -1039,7 +1039,10 @@ export class GpgShell {
     io: ShellIO,
   ): string {
     io.write('gpg: generating key (this happens entirely in your browser)…\n')
-    const key = coreGenerateKey({ userId, algorithm, passphrase, expireDays: expireDays || undefined })
+    // Pass expireDays as a number (0 = never). An explicit `undefined` here
+    // would be (mis)read by serde as a unit value and rejected for the u32
+    // field ("invalid type: unit value, expected u32").
+    const key = coreGenerateKey({ userId, algorithm, passphrase, expireDays })
     this.keyring.addGenerated(key.publicKey, key.secretKey)
     return (
       `gpg: key ${key.keyId.slice(-16)} marked as ultimately trusted\n` +

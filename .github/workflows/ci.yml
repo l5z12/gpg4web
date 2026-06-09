@@ -33,3 +33,8 @@ jobs:
           cd web
           bun install --frozen-lockfile || bun install
           bun run build
+
+      - name: Test gpg CLI simulator (against the Node-target WASM core)
+        run: |
+          cd web
+          GPG4WEB_WASM=/tmp/wasm-node/gpg4web_core.js bun test src/lib/gpgcli.test.ts

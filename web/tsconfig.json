@@ -26,5 +26,5 @@
     "auto-imports.d.ts",
     "components.d.ts"
   ],
-  "exclude": ["src/wasm/**"]
+  "exclude": ["src/wasm/**", "src/**/*.test.ts"]
 }
