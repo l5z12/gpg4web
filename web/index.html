@@ -18,9 +18,38 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <title>gpg4web — GnuPG in your browser</title>
+
+    <!-- Boot splash, rendered before the JS bundle parses/executes.
+         Styles are inlined (the app stylesheet is imported from JS and so is
+         not available at first paint). The app is always dark while locked, so
+         these colours match the dark theme tokens. Vue clears #app on mount,
+         which removes this automatically once the app takes over. -->
+    <style>
+      html { color-scheme: dark; }
+      html, body { height: 100%; margin: 0; background: #1f1f1f; }
+      #boot-splash {
+        position: fixed; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 16px;
+        color: #919191;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      #boot-splash .spinner {
+        width: 32px; height: 32px; border-radius: 50%;
+        border: 3px solid #3a3a3a; border-top-color: #479ef5;
+        animation: boot-spin 0.7s linear infinite;
+      }
+      #boot-splash .wordmark { font-size: 0.95rem; letter-spacing: 0.02em; color: #adadad; }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div id="boot-splash">
+        <div class="spinner"></div>
+        <div class="wordmark">gpg4web</div>
+      </div>
+    </div>
+    <noscript>gpg4web runs entirely in your browser and requires JavaScript.</noscript>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

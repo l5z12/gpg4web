@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
+// I18nT is imported locally (not globally registered) because __VUE_I18N_FULL_INSTALL__
+// is off — this is the only component that needs vue-i18n's interpolation component.
+import { useI18n, I18nT } from 'vue-i18n'
 import { isOfficialDomain, officialDomains } from '@/lib/domain'
 
 const { t } = useI18n()
@@ -22,10 +24,10 @@ function dismiss() {
     <UIcon name="i-lucide-triangle-alert" class="warn-banner-icon" />
     <span class="warn-banner-text">
       <strong>{{ t('warning.title') }}</strong>
-      <i18n-t keypath="warning.body" tag="span" scope="global">
+      <I18nT keypath="warning.body" tag="span" scope="global">
         <template #host><code>{{ host }}</code></template>
         <template #domains>{{ officialDomains.join(' / ') }}</template>
-      </i18n-t>
+      </I18nT>
     </span>
     <UButton
       icon="i-lucide-x"

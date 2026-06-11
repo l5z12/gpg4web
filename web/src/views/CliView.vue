@@ -311,7 +311,7 @@ onMounted(() => {
   min-width: 0;
 }
 .terminal {
-  background: #0b0f17;
+  background: #141414;
   border: 1px solid var(--ui-border);
   border-radius: 10px;
   padding: 14px 16px;
@@ -321,7 +321,7 @@ onMounted(() => {
   font-family: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
   font-size: 0.82rem;
   line-height: 1.5;
-  color: #d7dce3;
+  color: #d6d6d6;
   cursor: text;
 }
 .term-line {
@@ -329,13 +329,13 @@ onMounted(() => {
   word-break: break-word;
 }
 .term-line.in {
-  color: #7dd3fc;
+  color: #479ef5;
 }
 .term-line.sys {
-  color: #8a93a3;
+  color: #919191;
 }
 .term-line.out {
-  color: #d7dce3;
+  color: #d6d6d6;
 }
 .term-input-row {
   display: flex;
@@ -343,7 +343,7 @@ onMounted(() => {
   gap: 6px;
 }
 .term-prompt {
-  color: #34d399;
+  color: #479ef5;
   flex-shrink: 0;
   white-space: pre;
 }
@@ -353,9 +353,9 @@ onMounted(() => {
   background: transparent;
   border: none;
   outline: none;
-  color: #eaeef4;
+  color: #f0f0f0;
   font: inherit;
-  caret-color: #34d399;
+  caret-color: #479ef5;
 }
 .cli-side {
   background: var(--ui-bg-elevated);

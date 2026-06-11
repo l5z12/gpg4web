@@ -1,43 +1,15 @@
 // Internationalization (vue-i18n).
 //
-// Each UI namespace lives in its own file under locales/<locale>/<ns>.ts so the
-// English and Simplified-Chinese catalogs stay side by side and easy to extend.
+// Catalogs live in locales/<locale>.json and are pre-compiled into message
+// functions at build time by @intlify/unplugin-vue-i18n — so the browser ships
+// no runtime message compiler. Each locale is a separate code-split chunk and
+// is fetched only when it becomes active, so the first paint downloads just one
+// language's strings (not every translation).
+//
 // The active locale is persisted in plain localStorage (it is not sensitive),
 // so the choice also applies on the lock screen before the vault is unlocked.
 
 import { createI18n } from 'vue-i18n'
-
-import enApp from './locales/en/app'
-import enNav from './locales/en/nav'
-import enDialog from './locales/en/dialog'
-import enLock from './locales/en/lock'
-import enWarning from './locales/en/warning'
-import enKeys from './locales/en/keys'
-import enKeyDetail from './locales/en/keyDetail'
-import enNotepad from './locales/en/notepad'
-import enFiles from './locales/en/files'
-import enSign from './locales/en/sign'
-import enConsole from './locales/en/console'
-import enSettings from './locales/en/settings'
-import enAbout from './locales/en/about'
-import enGenerate from './locales/en/generate'
-import enImport from './locales/en/import'
-
-import zhApp from './locales/zh-CN/app'
-import zhNav from './locales/zh-CN/nav'
-import zhDialog from './locales/zh-CN/dialog'
-import zhLock from './locales/zh-CN/lock'
-import zhWarning from './locales/zh-CN/warning'
-import zhKeys from './locales/zh-CN/keys'
-import zhKeyDetail from './locales/zh-CN/keyDetail'
-import zhNotepad from './locales/zh-CN/notepad'
-import zhFiles from './locales/zh-CN/files'
-import zhSign from './locales/zh-CN/sign'
-import zhConsole from './locales/zh-CN/console'
-import zhSettings from './locales/zh-CN/settings'
-import zhAbout from './locales/zh-CN/about'
-import zhGenerate from './locales/zh-CN/generate'
-import zhImport from './locales/zh-CN/import'
 
 export type Locale = 'en' | 'zh-CN'
 
@@ -45,6 +17,13 @@ export const availableLocales: { value: Locale; label: string }[] = [
   { value: 'en', label: 'English' },
   { value: 'zh-CN', label: '简体中文' },
 ]
+
+// Static specifiers keep each catalog a distinct, pre-compiled chunk that Vite
+// can resolve and load on demand.
+const loaders: Record<Locale, () => Promise<{ default: Record<string, unknown> }>> = {
+  en: () => import('./locales/en.json'),
+  'zh-CN': () => import('./locales/zh-CN.json'),
+}
 
 const LS_KEY = 'gpg4web.locale'
 
@@ -54,58 +33,42 @@ function detectLocale(): Locale {
   return navigator.language?.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'
 }
 
-const messages = {
-  en: {
-    app: enApp,
-    nav: enNav,
-    dialog: enDialog,
-    lock: enLock,
-    warning: enWarning,
-    keys: enKeys,
-    keyDetail: enKeyDetail,
-    notepad: enNotepad,
-    files: enFiles,
-    sign: enSign,
-    console: enConsole,
-    settings: enSettings,
-    about: enAbout,
-    generate: enGenerate,
-    import: enImport,
-  },
-  'zh-CN': {
-    app: zhApp,
-    nav: zhNav,
-    dialog: zhDialog,
-    lock: zhLock,
-    warning: zhWarning,
-    keys: zhKeys,
-    keyDetail: zhKeyDetail,
-    notepad: zhNotepad,
-    files: zhFiles,
-    sign: zhSign,
-    console: zhConsole,
-    settings: zhSettings,
-    about: zhAbout,
-    generate: zhGenerate,
-    import: zhImport,
-  },
-}
-
 export const i18n = createI18n({
   legacy: false,
   locale: detectLocale(),
   fallbackLocale: 'en',
-  messages,
+  // Messages are attached lazily by loadLocaleMessages() so only the active
+  // language's catalog is downloaded.
+  messages: {},
 })
 
+const loaded = new Set<Locale>()
+
+/** Fetch and install a locale's pre-compiled catalog (no-op if already loaded). */
+export async function loadLocaleMessages(locale: Locale): Promise<void> {
+  if (loaded.has(locale)) return
+  const mod = await loaders[locale]()
+  i18n.global.setLocaleMessage(locale, mod.default as never)
+  loaded.add(locale)
+}
+
 /** Switch the active locale, persist it, and update the <html lang> attribute. */
-export function setLocale(locale: Locale) {
+export async function setLocale(locale: Locale): Promise<void> {
+  await loadLocaleMessages(locale)
   i18n.global.locale.value = locale
   localStorage.setItem(LS_KEY, locale)
   document.documentElement.setAttribute('lang', locale)
 }
 
-/** Apply the persisted/detected locale to the document on startup. */
-export function initLocale() {
-  document.documentElement.setAttribute('lang', i18n.global.locale.value)
+/**
+ * Load the active locale's catalog and apply it to the document. Awaited before
+ * the app mounts so the first render has its strings. The English fallback is
+ * fetched in the background (non-blocking) for non-English users so the rare
+ * missing key still resolves.
+ */
+export async function initLocale(): Promise<void> {
+  const locale = i18n.global.locale.value as Locale
+  await loadLocaleMessages(locale)
+  document.documentElement.setAttribute('lang', locale)
+  if (locale !== 'en') void loadLocaleMessages('en')
 }

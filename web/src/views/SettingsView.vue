@@ -41,7 +41,7 @@ const isDark = computed({
 })
 const language = computed({
   get: () => locale.value as Locale,
-  set: (v: Locale) => setLocale(v),
+  set: (v: Locale) => void setLocale(v),
 })
 const defaultAlgo = computed({
   get: () => vault.settings.defaultAlgorithm,

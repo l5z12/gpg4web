@@ -12,6 +12,8 @@ import './assets/main.css'
 // calls to the Iconify API (keeps the app offline-capable and CSP-friendly).
 addCollection(lucideIcons as Parameters<typeof addCollection>[0])
 
-initLocale()
-
-createApp(App).use(createPinia()).use(router).use(ui).use(i18n).mount('#app')
+// Load the active locale's pre-compiled catalog before mounting so the first
+// render has its strings. The static splash in index.html covers this gap.
+void initLocale().then(() => {
+  createApp(App).use(createPinia()).use(router).use(ui).use(i18n).mount('#app')
+})
